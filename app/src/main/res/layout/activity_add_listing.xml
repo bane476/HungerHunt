@@ -30,6 +30,20 @@
         android:layout_height="wrap_content"
         android:hint="@string/add_listing_pickup_window_hint" />
 
+    <EditText
+        android:id="@+id/editTextLatitude"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Latitude"
+        android:inputType="numberDecimal|numberSigned" />
+
+    <EditText
+        android:id="@+id/editTextLongitude"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Longitude"
+        android:inputType="numberDecimal|numberSigned" />
+
     <Button
         android:id="@+id/buttonAddListing"
         android:layout_width="match_parent"

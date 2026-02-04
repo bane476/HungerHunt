@@ -10,12 +10,12 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.foodrescue.app.R;
 import com.foodrescue.app.data.SharedPreferencesManager;
 import com.foodrescue.app.model.Listing;
-import com.google.gson.Gson; // Import Gson
+import com.google.gson.Gson;
 import java.util.UUID;
 
 public class AddListingActivity extends AppCompatActivity {
 
-    private EditText editTextTitle, editTextQuantity, editTextDescription, editTextPickupWindow;
+    private EditText editTextTitle, editTextQuantity, editTextDescription, editTextPickupWindow, editTextLatitude, editTextLongitude;
     private Button buttonAddListing;
     private SharedPreferencesManager sharedPreferencesManager;
     private Listing currentListing; // To hold the listing if we are in edit mode
@@ -31,6 +31,8 @@ public class AddListingActivity extends AppCompatActivity {
         editTextQuantity = findViewById(R.id.editTextQuantity);
         editTextDescription = findViewById(R.id.editTextDescription);
         editTextPickupWindow = findViewById(R.id.editTextPickupWindow);
+        editTextLatitude = findViewById(R.id.editTextLatitude);
+        editTextLongitude = findViewById(R.id.editTextLongitude);
         buttonAddListing = findViewById(R.id.buttonAddListing);
 
         // Check if we are in edit mode
@@ -43,6 +45,8 @@ public class AddListingActivity extends AppCompatActivity {
                 editTextQuantity.setText(currentListing.getQuantity());
                 editTextDescription.setText(currentListing.getDescription());
                 editTextPickupWindow.setText(currentListing.getPickupWindow());
+                editTextLatitude.setText(String.valueOf(currentListing.getLatitude()));
+                editTextLongitude.setText(String.valueOf(currentListing.getLongitude()));
                 buttonAddListing.setText("Update Listing"); // Change button text
             }
         }
@@ -60,9 +64,20 @@ public class AddListingActivity extends AppCompatActivity {
         String quantity = editTextQuantity.getText().toString().trim();
         String description = editTextDescription.getText().toString().trim();
         String pickupWindow = editTextPickupWindow.getText().toString().trim();
+        String latString = editTextLatitude.getText().toString().trim();
+        String lonString = editTextLongitude.getText().toString().trim();
 
-        if (TextUtils.isEmpty(title) || TextUtils.isEmpty(quantity) || TextUtils.isEmpty(description) || TextUtils.isEmpty(pickupWindow)) {
+        if (TextUtils.isEmpty(title) || TextUtils.isEmpty(quantity) || TextUtils.isEmpty(description) || TextUtils.isEmpty(pickupWindow) || TextUtils.isEmpty(latString) || TextUtils.isEmpty(lonString)) {
             Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        double latitude, longitude;
+        try {
+            latitude = Double.parseDouble(latString);
+            longitude = Double.parseDouble(lonString);
+        } catch (NumberFormatException e) {
+            Toast.makeText(this, "Invalid latitude or longitude", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -75,16 +90,12 @@ public class AddListingActivity extends AppCompatActivity {
         if (currentListing == null) {
             // New listing
             String id = UUID.randomUUID().toString();
-            // Dummy latitude and longitude for now
-            double latitude = 0.0;
-            double longitude = 0.0;
-
             Listing newListing = new Listing(id, donorEmail, title, quantity, description, pickupWindow, latitude, longitude);
             sharedPreferencesManager.saveListing(newListing);
             Toast.makeText(this, "Listing added successfully!", Toast.LENGTH_SHORT).show();
         } else {
             // Update existing listing
-            Listing updatedListing = new Listing(currentListing.getId(), donorEmail, title, quantity, description, pickupWindow, currentListing.getLatitude(), currentListing.getLongitude());
+            Listing updatedListing = new Listing(currentListing.getId(), donorEmail, title, quantity, description, pickupWindow, latitude, longitude);
             sharedPreferencesManager.updateListing(updatedListing);
             Toast.makeText(this, "Listing updated successfully!", Toast.LENGTH_SHORT).show();
         }
