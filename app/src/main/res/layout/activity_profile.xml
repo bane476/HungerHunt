@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/textViewEmail"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textStyle="bold"
+        android:textAppearance="@style/TextAppearance.AppCompat.Large"
+        android:layout_marginBottom="16dp" />
+
+    <EditText
+        android:id="@+id/editTextProfileName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Name"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/editTextProfilePhone"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Phone"
+        android:inputType="phone"
+        android:layout_marginBottom="8dp" />
+
+    <RadioGroup
+        android:id="@+id/radioGroupProfileRole"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="16dp">
+
+        <RadioButton
+            android:id="@+id/radioButtonProfileDonor"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Donor" />
+
+        <RadioButton
+            android:id="@+id/radioButtonProfileReceiver"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Receiver" />
+    </RadioGroup>
+
+    <Button
+        android:id="@+id/buttonSaveProfile"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Save Profile"
+        android:layout_marginBottom="8dp" />
+
+    <Button
+        android:id="@+id/buttonLogout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Logout" />
+
+</LinearLayout>
