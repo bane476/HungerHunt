@@ -1,12 +1,12 @@
 package com.foodrescue.app.view;
 
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.widget.SearchView;
+import android.view.View;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -20,7 +20,6 @@ import com.foodrescue.app.adapters.ListingAdapter;
 import com.foodrescue.app.data.SharedPreferencesManager;
 import com.foodrescue.app.firebase.FirebaseDatabaseService;
 import com.foodrescue.app.model.Listing;
-import com.foodrescue.app.utils.LocationHelper;
 import com.foodrescue.app.utils.NotificationHelper;
 import com.google.gson.Gson;
 import com.google.firebase.firestore.DocumentChange;
@@ -28,7 +27,9 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ReceiverHomeActivity extends AppCompatActivity implements ListingAdapter.OnListingClickListener {
 
@@ -36,13 +37,14 @@ public class ReceiverHomeActivity extends AppCompatActivity implements ListingAd
     private ListingAdapter listingAdapter;
     private List<Listing> allListings;
     private SharedPreferencesManager sharedPreferencesManager;
-    private SearchView searchViewListings;
+    private TextView textViewEmptyState;
     private Toolbar toolbar; // Declare Toolbar
     private FirebaseDatabaseService firebaseDatabaseService;
     private ListenerRegistration listingsListener;
     private Location lastKnownLocation;
 
-    private static final int REQUEST_LOCATION = 2001;
+    private static final double SIMULATED_USER_LATITUDE = 28.6139;
+    private static final double SIMULATED_USER_LONGITUDE = 77.2090;
     private static final double NOTIFICATION_RADIUS_KM = 5.0;
 
     @Override
@@ -60,64 +62,65 @@ public class ReceiverHomeActivity extends AppCompatActivity implements ListingAd
 
         recyclerViewListings = findViewById(R.id.recyclerViewListings);
         recyclerViewListings.setLayoutManager(new LinearLayoutManager(this));
+        textViewEmptyState = findViewById(R.id.textViewEmptyState);
         allListings = new ArrayList<>();
         listingAdapter = new ListingAdapter(allListings, this);
         recyclerViewListings.setAdapter(listingAdapter);
-
-        searchViewListings = findViewById(R.id.searchViewListings);
-        searchViewListings.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
-            @Override
-            public boolean onQueryTextSubmit(String query) {
-                return false;
-            }
-
-            @Override
-            public boolean onQueryTextChange(String newText) {
-                listingAdapter.getFilter().filter(newText);
-                return false;
-            }
-        });
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         loadAllListings();
-        ensureLocationAndStartListener();
+        initializeSimulatedLocationAndStartListener();
     }
 
     private void loadAllListings() {
         firebaseDatabaseService.getAllListings()
                 .addOnSuccessListener(querySnapshot -> {
-                    allListings.clear();
+                    Map<String, Listing> mergedListings = new LinkedHashMap<>();
+
+                    for (Listing listing : sharedPreferencesManager.getAllListings()) {
+                        if (listing != null && isListingValid(listing)) {
+                            String key = listing.getId() != null ? listing.getId() : listing.getTitle() + "_" + listing.getDonorEmail();
+                            mergedListings.put(key, listing);
+                        }
+                    }
+
                     for (DocumentSnapshot doc : querySnapshot.getDocuments()) {
                         Listing listing = doc.toObject(Listing.class);
-                        if (listing != null) {
-                            allListings.add(listing);
+                        if (listing != null && isListingValid(listing)) {
+                            String key = listing.getId() != null ? listing.getId() : doc.getId();
+                            mergedListings.put(key, listing);
                             if (listing.getId() != null) {
                                 sharedPreferencesManager.markListingNotified(listing.getId());
                             }
                         }
                     }
+                    allListings.clear();
+                    allListings.addAll(mergedListings.values());
                     listingAdapter.updateListings(allListings);
+                    updateEmptyState();
                 })
                 .addOnFailureListener(e -> {
                     allListings.clear();
-                    allListings.addAll(sharedPreferencesManager.getAllListings());
+                    for (Listing listing : sharedPreferencesManager.getAllListings()) {
+                        if (isListingValid(listing)) {
+                            allListings.add(listing);
+                        }
+                    }
                     listingAdapter.updateListings(allListings);
+                    updateEmptyState();
                     Toast.makeText(this, "Using local listings (offline)", Toast.LENGTH_SHORT).show();
                 });
     }
 
-    private void ensureLocationAndStartListener() {
-        if (!LocationHelper.hasLocationPermission(this)) {
-            LocationHelper.requestLocationPermission(this, REQUEST_LOCATION);
-            return;
-        }
-        LocationHelper.fetchLastLocation(this, location -> {
-            lastKnownLocation = location;
-            startListingsListenerIfNeeded();
-        });
+    private void initializeSimulatedLocationAndStartListener() {
+        Location location = new Location("simulated");
+        location.setLatitude(SIMULATED_USER_LATITUDE);
+        location.setLongitude(SIMULATED_USER_LONGITUDE);
+        lastKnownLocation = location;
+        startListingsListenerIfNeeded();
     }
 
     private void startListingsListenerIfNeeded() {
@@ -134,6 +137,9 @@ public class ReceiverHomeActivity extends AppCompatActivity implements ListingAd
                 }
                 Listing listing = change.getDocument().toObject(Listing.class);
                 if (listing == null || listing.getId() == null) {
+                    continue;
+                }
+                if (!isListingValid(listing)) {
                     continue;
                 }
                 if (sharedPreferencesManager.isListingNotified(listing.getId())) {
@@ -174,27 +180,6 @@ public class ReceiverHomeActivity extends AppCompatActivity implements ListingAd
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQUEST_LOCATION) {
-            boolean granted = false;
-            if (grantResults.length > 0) {
-                for (int result : grantResults) {
-                    if (result == PackageManager.PERMISSION_GRANTED) {
-                        granted = true;
-                        break;
-                    }
-                }
-            }
-            if (granted) {
-                ensureLocationAndStartListener();
-            } else {
-                Toast.makeText(this, "Location permission is required for nearby alerts", Toast.LENGTH_SHORT).show();
-            }
-        }
-    }
-
-    @Override
     public void onListingClick(Listing listing) {
         Intent intent = new Intent(ReceiverHomeActivity.this, ListingDetailsActivity.class);
         Gson gson = new Gson();
@@ -220,5 +205,19 @@ public class ReceiverHomeActivity extends AppCompatActivity implements ListingAd
             return true;
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    private boolean isListingValid(Listing listing) {
+        return !listing.isClaimed();
+    }
+
+    private void updateEmptyState() {
+        if (allListings.isEmpty()) {
+            textViewEmptyState.setVisibility(View.VISIBLE);
+            recyclerViewListings.setVisibility(View.GONE);
+        } else {
+            textViewEmptyState.setVisibility(View.GONE);
+            recyclerViewListings.setVisibility(View.VISIBLE);
+        }
     }
 }

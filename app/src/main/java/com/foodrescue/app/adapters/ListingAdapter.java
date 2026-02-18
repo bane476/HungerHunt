@@ -10,6 +10,7 @@ import android.widget.Filterable;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.foodrescue.app.R;
@@ -45,17 +46,23 @@ public class ListingAdapter extends RecyclerView.Adapter<ListingAdapter.ListingV
     public void onBindViewHolder(@NonNull ListingViewHolder holder, int position) {
         Listing listing = listingsFiltered.get(position); // Use filtered list
         holder.textViewTitle.setText(listing.getTitle());
-        holder.textViewQuantity.setText(listing.getQuantity());
+        String priceText = (listing.getPrice() == null || listing.getPrice().trim().isEmpty()) ? "Free" : listing.getPrice();
+        holder.textViewQuantity.setText("Qty: " + listing.getQuantity() + " | Price: " + priceText);
+        int textPrimary = ContextCompat.getColor(holder.itemView.getContext(), R.color.text_primary);
+        int textSecondary = ContextCompat.getColor(holder.itemView.getContext(), R.color.text_secondary);
+        int successColor = ContextCompat.getColor(holder.itemView.getContext(), R.color.success);
 
         if (listing.isClaimed()) {
             holder.textViewTitle.setTextColor(Color.GRAY);
             holder.textViewQuantity.setTextColor(Color.GRAY);
+            holder.textViewStatus.setTextColor(textSecondary);
             holder.textViewTitle.setPaintFlags(holder.textViewTitle.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
             holder.textViewQuantity.setPaintFlags(holder.textViewQuantity.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
             holder.textViewStatus.setText("Claimed by: " + listing.getClaimedByEmail());
         } else {
-            holder.textViewTitle.setTextColor(Color.BLACK); // Or your default text color
-            holder.textViewQuantity.setTextColor(Color.BLACK); // Or your default text color
+            holder.textViewTitle.setTextColor(textPrimary);
+            holder.textViewQuantity.setTextColor(textSecondary);
+            holder.textViewStatus.setTextColor(successColor);
             holder.textViewTitle.setPaintFlags(holder.textViewTitle.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
             holder.textViewQuantity.setPaintFlags(holder.textViewQuantity.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
             holder.textViewStatus.setText("Available");

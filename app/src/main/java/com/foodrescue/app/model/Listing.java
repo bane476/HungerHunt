@@ -5,32 +5,44 @@ public class Listing {
     private String donorEmail;
     private String title;
     private String quantity;
+    private String price;
     private String description;
     private String pickupWindow;
     private double latitude;
     private double longitude;
     private boolean isClaimed;
     private String claimedByEmail;
+    private String paymentMethod;
 
     public Listing() {
         // Required for Firebase deserialization
     }
 
     public Listing(String id, String donorEmail, String title, String quantity, String description, String pickupWindow, double latitude, double longitude) {
-        this(id, donorEmail, title, quantity, description, pickupWindow, latitude, longitude, false, null);
+        this(id, donorEmail, title, quantity, null, description, pickupWindow, latitude, longitude, false, null, null);
+    }
+
+    public Listing(String id, String donorEmail, String title, String quantity, String price, String description, String pickupWindow, double latitude, double longitude) {
+        this(id, donorEmail, title, quantity, price, description, pickupWindow, latitude, longitude, false, null, null);
     }
 
     public Listing(String id, String donorEmail, String title, String quantity, String description, String pickupWindow, double latitude, double longitude, boolean isClaimed, String claimedByEmail) {
+        this(id, donorEmail, title, quantity, null, description, pickupWindow, latitude, longitude, isClaimed, claimedByEmail, null);
+    }
+
+    public Listing(String id, String donorEmail, String title, String quantity, String price, String description, String pickupWindow, double latitude, double longitude, boolean isClaimed, String claimedByEmail, String paymentMethod) {
         this.id = id;
         this.donorEmail = donorEmail;
         this.title = title;
         this.quantity = quantity;
+        this.price = price;
         this.description = description;
         this.pickupWindow = pickupWindow;
         this.latitude = latitude;
         this.longitude = longitude;
         this.isClaimed = isClaimed;
         this.claimedByEmail = claimedByEmail;
+        this.paymentMethod = paymentMethod;
     }
 
     public String getId() {
@@ -59,6 +71,14 @@ public class Listing {
 
     public void setQuantity(String quantity) {
         this.quantity = quantity;
+    }
+
+    public String getPrice() {
+        return price;
+    }
+
+    public void setPrice(String price) {
+        this.price = price;
     }
 
     public String getDescription() {
@@ -111,5 +131,13 @@ public class Listing {
 
     public void setClaimedByEmail(String claimedByEmail) {
         this.claimedByEmail = claimedByEmail;
+    }
+
+    public String getPaymentMethod() {
+        return paymentMethod;
+    }
+
+    public void setPaymentMethod(String paymentMethod) {
+        this.paymentMethod = paymentMethod;
     }
 }

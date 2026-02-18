@@ -2,16 +2,19 @@ package com.foodrescue.app.view;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.Toolbar; // Import Toolbar
 
 import com.foodrescue.app.R;
 import com.foodrescue.app.data.SharedPreferencesManager;
+import com.foodrescue.app.firebase.FirebaseDatabaseService;
 import com.foodrescue.app.model.Listing;
 import com.foodrescue.app.model.User;
 import com.foodrescue.app.utils.NotificationHelper; // Import NotificationHelper
@@ -20,13 +23,14 @@ import com.google.gson.Gson;
 public class ListingDetailsActivity extends AppCompatActivity {
 
     private TextView textViewDetailTitle, textViewDetailDonorEmail, textViewDetailQuantity,
-            textViewDetailDescription, textViewDetailPickupWindow, textViewClaimStatus;
+            textViewDetailPrice, textViewDetailDescription, textViewDetailPickupWindow, textViewClaimStatus;
     private Button buttonClaimListing, buttonEditListing, buttonDeleteListing;
     private SharedPreferencesManager sharedPreferencesManager;
     private Listing currentListing; // Store the current listing
     private String loggedInUserEmail;
     private User loggedInUser;
     private Toolbar toolbar; // Declare Toolbar
+    private FirebaseDatabaseService firebaseDatabaseService;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,10 +47,12 @@ public class ListingDetailsActivity extends AppCompatActivity {
         }
 
         sharedPreferencesManager = new SharedPreferencesManager(this);
+        firebaseDatabaseService = new FirebaseDatabaseService(this);
 
         textViewDetailTitle = findViewById(R.id.textViewDetailTitle);
         textViewDetailDonorEmail = findViewById(R.id.textViewDetailDonorEmail);
         textViewDetailQuantity = findViewById(R.id.textViewDetailQuantity);
+        textViewDetailPrice = findViewById(R.id.textViewDetailPrice);
         textViewDetailDescription = findViewById(R.id.textViewDetailDescription);
         textViewDetailPickupWindow = findViewById(R.id.textViewDetailPickupWindow);
         textViewClaimStatus = findViewById(R.id.textViewClaimStatus); // Initialize from XML
@@ -67,6 +73,7 @@ public class ListingDetailsActivity extends AppCompatActivity {
                 textViewDetailTitle.setText(currentListing.getTitle());
                 textViewDetailDonorEmail.setText("Donor: " + currentListing.getDonorEmail());
                 textViewDetailQuantity.setText("Quantity: " + currentListing.getQuantity());
+                textViewDetailPrice.setText("Price: " + (TextUtils.isEmpty(currentListing.getPrice()) ? "Free" : currentListing.getPrice()));
                 textViewDetailDescription.setText("Description: " + currentListing.getDescription());
                 textViewDetailPickupWindow.setText("Pickup Window: " + currentListing.getPickupWindow());
 
@@ -121,18 +128,7 @@ public class ListingDetailsActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 if (loggedInUser != null && loggedInUser.getRole().equals("Receiver") && !currentListing.isClaimed()) {
-                    currentListing.setClaimed(true);
-                    currentListing.setClaimedByEmail(loggedInUserEmail);
-                    sharedPreferencesManager.updateListing(currentListing);
-                    Toast.makeText(ListingDetailsActivity.this, "Listing claimed successfully!", Toast.LENGTH_SHORT).show();
-                    updateClaimStatusUI(); // Update UI
-                    buttonClaimListing.setVisibility(View.GONE); // Hide button after claiming
-                    // Send notification to donor
-                    NotificationHelper.sendNotification(ListingDetailsActivity.this,
-                            "Listing Claimed!",
-                            currentListing.getTitle() + " has been claimed by " + loggedInUserEmail + ".",
-                            currentListing.hashCode()); // Unique ID for notification
-                    // Optionally, you might want to refresh the previous activity or navigate back
+                    showPaymentMethodPickerAndClaim();
                 } else {
                     Toast.makeText(ListingDetailsActivity.this, "Unable to claim listing.", Toast.LENGTH_SHORT).show();
                 }
@@ -148,10 +144,40 @@ public class ListingDetailsActivity extends AppCompatActivity {
 
     private void updateClaimStatusUI() {
         if (currentListing.isClaimed()) {
-            textViewClaimStatus.setText("Claimed by: " + currentListing.getClaimedByEmail());
+            String claimStatus = "Claimed by: " + currentListing.getClaimedByEmail();
+            if (!TextUtils.isEmpty(currentListing.getPaymentMethod())) {
+                claimStatus += "\nPayment: " + currentListing.getPaymentMethod();
+            }
+            textViewClaimStatus.setText(claimStatus);
             textViewClaimStatus.setVisibility(View.VISIBLE);
         } else {
             textViewClaimStatus.setVisibility(View.GONE);
         }
+    }
+
+    private void showPaymentMethodPickerAndClaim() {
+        final String[] paymentMethods = {"Cash", "UPI", "Card"};
+        new AlertDialog.Builder(this)
+                .setTitle("Select Payment Method")
+                .setItems(paymentMethods, (dialog, which) -> completeClaim(paymentMethods[which]))
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void completeClaim(String paymentMethod) {
+        currentListing.setClaimed(true);
+        currentListing.setClaimedByEmail(loggedInUserEmail);
+        currentListing.setPaymentMethod(paymentMethod);
+        sharedPreferencesManager.updateListing(currentListing);
+        firebaseDatabaseService.saveListing(currentListing);
+        Toast.makeText(this, "Listing claimed successfully!", Toast.LENGTH_SHORT).show();
+        updateClaimStatusUI();
+        buttonClaimListing.setVisibility(View.GONE);
+        NotificationHelper.sendNotification(
+                this,
+                "Listing Claimed!",
+                currentListing.getTitle() + " claimed by " + loggedInUserEmail + " via " + paymentMethod + ".",
+                currentListing.hashCode()
+        );
     }
 }

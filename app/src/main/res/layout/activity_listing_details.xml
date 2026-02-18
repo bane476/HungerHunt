@@ -3,6 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/light_gray"
     android:orientation="vertical">
 
     <com.google.android.material.appbar.AppBarLayout
@@ -30,70 +31,109 @@
             android:padding="16dp">
 
             <TextView
-                android:id="@+id/textViewDetailTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textAppearance="@style/TextAppearance.AppCompat.Large"
-                android:textStyle="bold"
-                android:layout_marginBottom="8dp" />
+                android:layout_marginBottom="10dp"
+                android:text="@string/details_section_title"
+                android:textColor="@color/text_primary"
+                android:textSize="20sp"
+                android:textStyle="bold" />
 
-            <TextView
-                android:id="@+id/textViewDetailDonorEmail"
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:textAppearance="@style/TextAppearance.AppCompat.Small"
-                android:layout_marginBottom="8dp" />
+                app:cardBackgroundColor="@color/surface_card"
+                app:cardCornerRadius="18dp"
+                app:cardElevation="4dp">
 
-            <TextView
-                android:id="@+id/textViewDetailQuantity"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textAppearance="@style/TextAppearance.AppCompat.Medium"
-                android:layout_marginBottom="8dp" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
 
-            <TextView
-                android:id="@+id/textViewDetailDescription"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textAppearance="@style/TextAppearance.AppCompat.Medium"
-                android:layout_marginBottom="8dp" />
+                    <TextView
+                        android:id="@+id/textViewDetailTitle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:textAppearance="@style/TextAppearance.AppCompat.Large"
+                        android:textColor="@color/text_primary"
+                        android:textStyle="bold" />
 
-            <TextView
-                android:id="@+id/textViewDetailPickupWindow"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textAppearance="@style/TextAppearance.AppCompat.Medium"
-                android:layout_marginBottom="16dp" />
+                    <TextView
+                        android:id="@+id/textViewDetailDonorEmail"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:textAppearance="@style/TextAppearance.AppCompat.Small"
+                        android:textColor="@color/text_secondary" />
 
-            <TextView
-                android:id="@+id/textViewClaimStatus"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textAppearance="@style/TextAppearance.AppCompat.Medium"
-                android:textStyle="italic"
-                android:layout_marginBottom="16dp"
-                android:visibility="gone" />
+                    <TextView
+                        android:id="@+id/textViewDetailQuantity"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="6dp"
+                        android:textAppearance="@style/TextAppearance.AppCompat.Medium"
+                        android:textColor="@color/text_primary" />
 
-            <Button
-                android:id="@+id/buttonClaimListing"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Claim Listing" />
+                    <TextView
+                        android:id="@+id/textViewDetailPrice"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="6dp"
+                        android:textAppearance="@style/TextAppearance.AppCompat.Medium"
+                        android:textColor="@color/text_primary" />
 
-            <Button
-                android:id="@+id/buttonEditListing"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Edit Listing"
-                android:visibility="gone" />
+                    <TextView
+                        android:id="@+id/textViewDetailDescription"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="6dp"
+                        android:textAppearance="@style/TextAppearance.AppCompat.Medium"
+                        android:textColor="@color/text_primary" />
 
-            <Button
-                android:id="@+id/buttonDeleteListing"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Delete Listing"
-                android:visibility="gone" />
+                    <TextView
+                        android:id="@+id/textViewDetailPickupWindow"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="14dp"
+                        android:textAppearance="@style/TextAppearance.AppCompat.Medium"
+                        android:textColor="@color/text_primary" />
 
+                    <TextView
+                        android:id="@+id/textViewClaimStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        android:textAppearance="@style/TextAppearance.AppCompat.Medium"
+                        android:textColor="@color/success"
+                        android:textStyle="bold|italic"
+                        android:visibility="gone" />
+
+                    <Button
+                        android:id="@+id/buttonClaimListing"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:text="Claim Listing" />
+
+                    <Button
+                        android:id="@+id/buttonEditListing"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
+                        android:text="Edit Listing"
+                        android:visibility="gone" />
+
+                    <Button
+                        android:id="@+id/buttonDeleteListing"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Delete Listing"
+                        android:visibility="gone" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
     </ScrollView>
 

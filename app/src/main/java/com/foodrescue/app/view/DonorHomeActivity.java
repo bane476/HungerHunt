@@ -5,7 +5,6 @@ import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.SearchView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -32,7 +31,6 @@ public class DonorHomeActivity extends AppCompatActivity implements ListingAdapt
     private List<Listing> donorListings;
     private SharedPreferencesManager sharedPreferencesManager;
     private String loggedInDonorEmail;
-    private SearchView searchViewListings;
     private Toolbar toolbar; // Declare Toolbar
 
     @Override
@@ -59,20 +57,6 @@ public class DonorHomeActivity extends AppCompatActivity implements ListingAdapt
         donorListings = new ArrayList<>();
         listingAdapter = new ListingAdapter(donorListings, this);
         recyclerViewListings.setAdapter(listingAdapter);
-
-        searchViewListings = findViewById(R.id.searchViewListings);
-        searchViewListings.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
-            @Override
-            public boolean onQueryTextSubmit(String query) {
-                return false;
-            }
-
-            @Override
-            public boolean onQueryTextChange(String newText) {
-                listingAdapter.getFilter().filter(newText);
-                return false;
-            }
-        });
     }
 
 

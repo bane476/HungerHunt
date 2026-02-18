@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="green_primary">#4CAF50</color>
-    <color name="green_dark">#388E3C</color>
-    <color name="orange_accent">#FF9800</color>
-    <color name="text_primary">#212121</color>
-    <color name="text_secondary">#757575</color>
+    <color name="green_primary">#0F766E</color>
+    <color name="green_dark">#0B5E57</color>
+    <color name="orange_accent">#D97706</color>
+    <color name="text_primary">#111827</color>
+    <color name="text_secondary">#4B5563</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="light_gray">#F5F5F5</color>
+    <color name="light_gray">#F3F7F6</color>
+    <color name="surface_card">#FFFFFFFF</color>
+    <color name="divider">#D1D5DB</color>
+    <color name="success">#15803D</color>
 </resources>
