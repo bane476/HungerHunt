@@ -1,6 +1,9 @@
 package com.foodrescue.app.view;
 
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.location.Location;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
@@ -19,6 +22,7 @@ import com.foodrescue.app.data.SharedPreferencesManager;
 import com.foodrescue.app.firebase.FirebaseDatabaseService;
 import com.foodrescue.app.model.Listing;
 import com.foodrescue.app.model.User;
+import com.foodrescue.app.utils.LocationHelper;
 import com.foodrescue.app.utils.NotificationHelper; // Import NotificationHelper
 import com.google.android.material.chip.Chip;
 import com.google.gson.Gson;
@@ -27,10 +31,11 @@ import java.util.Date;
 import java.util.Locale;
 
 public class ListingDetailsActivity extends AppCompatActivity {
+    private static final int LOCATION_PERMISSION_REQUEST_CODE = 201;
 
     private TextView textViewDetailTitle, textViewDetailDonorEmail, textViewDetailQuantity,
             textViewDetailPrice, textViewDetailDescription, textViewDetailPickupWindow, textViewClaimStatus;
-    private Button buttonClaimListing, buttonEditListing, buttonDeleteListing, buttonUpdateOrderStatus;
+    private Button buttonClaimListing, buttonNavigateToBusiness, buttonEditListing, buttonDeleteListing, buttonUpdateOrderStatus;
     private Chip chipOrderStatus;
     private SharedPreferencesManager sharedPreferencesManager;
     private Listing currentListing; // Store the current listing
@@ -65,6 +70,7 @@ public class ListingDetailsActivity extends AppCompatActivity {
         textViewClaimStatus = findViewById(R.id.textViewClaimStatus); // Initialize from XML
         chipOrderStatus = findViewById(R.id.chipOrderStatus);
         buttonClaimListing = findViewById(R.id.buttonClaimListing);
+        buttonNavigateToBusiness = findViewById(R.id.buttonNavigateToBusiness);
         buttonEditListing = findViewById(R.id.buttonEditListing);
         buttonDeleteListing = findViewById(R.id.buttonDeleteListing);
         buttonUpdateOrderStatus = findViewById(R.id.buttonUpdateOrderStatus);
@@ -96,10 +102,12 @@ public class ListingDetailsActivity extends AppCompatActivity {
                     buttonEditListing.setVisibility(View.VISIBLE);
                     buttonDeleteListing.setVisibility(View.VISIBLE);
                     buttonClaimListing.setVisibility(View.GONE); // Donor cannot claim their own listing
+                    buttonNavigateToBusiness.setVisibility(View.GONE);
                 } else if (loggedInUser != null && isCustomerRole(loggedInUser.getRole())) {
                     // Logged-in user is a receiver
                     buttonEditListing.setVisibility(View.GONE);
                     buttonDeleteListing.setVisibility(View.GONE);
+                    buttonNavigateToBusiness.setVisibility(View.VISIBLE);
                     if (currentListing.isClaimed() || getAvailableQuantity() <= 0) {
                         buttonClaimListing.setVisibility(View.GONE); // Already claimed
                     } else {
@@ -110,6 +118,7 @@ public class ListingDetailsActivity extends AppCompatActivity {
                     buttonEditListing.setVisibility(View.GONE);
                     buttonDeleteListing.setVisibility(View.GONE);
                     buttonClaimListing.setVisibility(View.GONE);
+                    buttonNavigateToBusiness.setVisibility(View.GONE);
                 }
 
                 buttonEditListing.setOnClickListener(new View.OnClickListener() {
@@ -149,6 +158,8 @@ public class ListingDetailsActivity extends AppCompatActivity {
                 }
             }
         });
+
+        buttonNavigateToBusiness.setOnClickListener(v -> navigateToBusiness());
     }
 
     @Override
@@ -356,5 +367,51 @@ public class ListingDetailsActivity extends AppCompatActivity {
 
     private boolean isCustomerRole(String role) {
         return "Customer".equalsIgnoreCase(role) || "Receiver".equalsIgnoreCase(role);
+    }
+
+    private void navigateToBusiness() {
+        if (currentListing == null) {
+            Toast.makeText(this, "Listing not found.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (!LocationHelper.hasLocationPermission(this)) {
+            LocationHelper.requestLocationPermission(this, LOCATION_PERMISSION_REQUEST_CODE);
+            return;
+        }
+
+        LocationHelper.fetchLastLocation(this, this::openMapsNavigation);
+    }
+
+    private void openMapsNavigation(Location userLocation) {
+        String destination = currentListing.getLatitude() + "," + currentListing.getLongitude();
+        String navUri;
+        if (userLocation != null) {
+            String origin = userLocation.getLatitude() + "," + userLocation.getLongitude();
+            navUri = "https://www.google.com/maps/dir/?api=1&origin=" + origin + "&destination=" + destination + "&travelmode=driving";
+        } else {
+            navUri = "google.navigation:q=" + destination + "&mode=d";
+        }
+
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(navUri));
+            intent.setPackage("com.google.android.apps.maps");
+            startActivity(intent);
+        } catch (ActivityNotFoundException e) {
+            String fallback = "https://www.google.com/maps/dir/?api=1&destination=" + destination + "&travelmode=driving";
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(fallback)));
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
+            if (LocationHelper.hasLocationPermission(this)) {
+                LocationHelper.fetchLastLocation(this, this::openMapsNavigation);
+            } else {
+                openMapsNavigation(null);
+            }
+        }
     }
 }

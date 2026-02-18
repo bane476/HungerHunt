@@ -11,6 +11,8 @@ import androidx.core.content.ContextCompat;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.Priority;
+import com.google.android.gms.tasks.CancellationTokenSource;
 
 public class LocationHelper {
 
@@ -37,8 +39,19 @@ public class LocationHelper {
             return;
         }
         FusedLocationProviderClient client = LocationServices.getFusedLocationProviderClient(activity);
-        client.getLastLocation()
-                .addOnSuccessListener(listener::onLocationResult)
-                .addOnFailureListener(e -> listener.onLocationResult(null));
+        CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+        client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.getToken())
+                .addOnSuccessListener(location -> {
+                    if (location != null) {
+                        listener.onLocationResult(location);
+                    } else {
+                        client.getLastLocation()
+                                .addOnSuccessListener(listener::onLocationResult)
+                                .addOnFailureListener(e -> listener.onLocationResult(null));
+                    }
+                })
+                .addOnFailureListener(e -> client.getLastLocation()
+                        .addOnSuccessListener(listener::onLocationResult)
+                        .addOnFailureListener(ex -> listener.onLocationResult(null)));
     }
 }
