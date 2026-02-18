@@ -3,16 +3,17 @@
     <string name="login_email_hint">Email</string>
     <string name="login_password_hint">Password</string>
     <string name="login_title">Welcome to MealMate</string>
-    <string name="login_subtitle">Connect donors and receivers with fast, reliable pickup.</string>
+    <string name="login_subtitle">Connect businesses and customers for fast, reliable food pickups.</string>
     <string name="login_button_text">Login</string>
     <string name="login_register_text">Don\'t have an account? Register here.</string>
     <string name="register_name_hint">Name</string>
     <string name="register_phone_hint">Phone</string>
-    <string name="register_donor_radio_button_text">Donor</string>
-    <string name="register_receiver_radio_button_text">Receiver</string>
+    <string name="register_address_hint">Address</string>
+    <string name="register_donor_radio_button_text">Business</string>
+    <string name="register_receiver_radio_button_text">Customer</string>
     <string name="register_button_text">Register</string>
     <string name="register_title">Create Account</string>
-    <string name="register_subtitle">Set up your profile to start donating or receiving meals.</string>
+    <string name="register_subtitle">Set up your profile to start selling or buying meals.</string>
     <string name="add_listing_title_hint">Title</string>
     <string name="add_listing_quantity_hint">Quantity</string>
     <string name="add_listing_price_hint">Price</string>
@@ -23,8 +24,8 @@
     <string name="item_listing_title_label">Title</string>
     <string name="item_listing_quantity_label">Quantity</string>
     <string name="item_listing_status_label">Status</string>
-    <string name="receiver_available_listings">Available Listings</string>
+    <string name="receiver_available_listings">Available Food Listings</string>
     <string name="receiver_no_valid_listings">No valid listings are available right now.</string>
-    <string name="donor_your_listings">Your Listings</string>
+    <string name="donor_your_listings">Your Listings for Sale</string>
     <string name="details_section_title">Listing Summary</string>
 </resources>

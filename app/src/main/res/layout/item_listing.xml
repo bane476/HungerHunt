@@ -35,6 +35,14 @@
             android:text="@string/item_listing_quantity_label" />
 
         <TextView
+            android:id="@+id/textViewBusiness"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textColor="@color/text_secondary"
+            android:textStyle="italic" />
+
+        <TextView
             android:id="@+id/textViewStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

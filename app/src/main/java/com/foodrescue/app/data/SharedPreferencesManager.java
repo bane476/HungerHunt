@@ -19,12 +19,26 @@ public class SharedPreferencesManager {
     private static final String KEY_LOGGED_IN_USER_EMAIL = "loggedInUserEmail";
     private static final String KEY_LISTINGS = "listings";
     private static final String KEY_NOTIFIED_LISTINGS = "notifiedListings";
+    private static final String KEY_ORDER_HISTORY = "orderHistory";
+    private static final String KEY_DATA_VERSION = "dataVersion";
+    private static final int CURRENT_DATA_VERSION = 4;
+    private static boolean migrationChecked = false;
     private SharedPreferences sharedPreferences;
     private Gson gson;
 
     public SharedPreferencesManager(Context context) {
         sharedPreferences = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
         gson = new Gson();
+        if (!migrationChecked) {
+            int storedVersion = sharedPreferences.getInt(KEY_DATA_VERSION, 0);
+            if (storedVersion < CURRENT_DATA_VERSION) {
+                sharedPreferences.edit()
+                        .clear()
+                        .putInt(KEY_DATA_VERSION, CURRENT_DATA_VERSION)
+                        .commit();
+            }
+            migrationChecked = true;
+        }
     }
 
     public void saveUser(User user) {
@@ -49,13 +63,13 @@ public class SharedPreferencesManager {
     }
 
     public void saveListing(Listing listing) {
-        Set<String> listingsJson = sharedPreferences.getStringSet(KEY_LISTINGS, new HashSet<String>());
+        Set<String> listingsJson = new HashSet<>(sharedPreferences.getStringSet(KEY_LISTINGS, new HashSet<>()));
         listingsJson.add(gson.toJson(listing));
         sharedPreferences.edit().putStringSet(KEY_LISTINGS, listingsJson).apply();
     }
 
     public List<Listing> getAllListings() {
-        Set<String> listingsJson = sharedPreferences.getStringSet(KEY_LISTINGS, new HashSet<String>());
+        Set<String> listingsJson = new HashSet<>(sharedPreferences.getStringSet(KEY_LISTINGS, new HashSet<>()));
         List<Listing> listings = new ArrayList<>();
         for (String json : listingsJson) {
             listings.add(gson.fromJson(json, Listing.class));
@@ -64,12 +78,12 @@ public class SharedPreferencesManager {
     }
 
     public void deleteListing(String listingId) {
-        Set<String> listingsJson = sharedPreferences.getStringSet(KEY_LISTINGS, new HashSet<String>());
+        Set<String> listingsJson = new HashSet<>(sharedPreferences.getStringSet(KEY_LISTINGS, new HashSet<>()));
         Iterator<String> iterator = listingsJson.iterator();
         while (iterator.hasNext()) {
             String json = iterator.next();
             Listing listing = gson.fromJson(json, Listing.class);
-            if (listing != null && listing.getId().equals(listingId)) {
+            if (listing != null && listing.getId() != null && listing.getId().equals(listingId)) {
                 iterator.remove();
                 break;
             }
@@ -78,13 +92,13 @@ public class SharedPreferencesManager {
     }
 
     public void updateListing(Listing updatedListing) {
-        Set<String> listingsJson = sharedPreferences.getStringSet(KEY_LISTINGS, new HashSet<String>());
+        Set<String> listingsJson = new HashSet<>(sharedPreferences.getStringSet(KEY_LISTINGS, new HashSet<>()));
         // Remove the old listing
         Iterator<String> iterator = listingsJson.iterator();
         while (iterator.hasNext()) {
             String json = iterator.next();
             Listing listing = gson.fromJson(json, Listing.class);
-            if (listing != null && listing.getId().equals(updatedListing.getId())) {
+            if (listing != null && listing.getId() != null && listing.getId().equals(updatedListing.getId())) {
                 iterator.remove();
                 break;
             }
@@ -95,13 +109,37 @@ public class SharedPreferencesManager {
     }
 
     public boolean isListingNotified(String listingId) {
-        Set<String> notifiedIds = sharedPreferences.getStringSet(KEY_NOTIFIED_LISTINGS, new HashSet<String>());
+        Set<String> notifiedIds = new HashSet<>(sharedPreferences.getStringSet(KEY_NOTIFIED_LISTINGS, new HashSet<>()));
         return notifiedIds.contains(listingId);
     }
 
     public void markListingNotified(String listingId) {
-        Set<String> notifiedIds = sharedPreferences.getStringSet(KEY_NOTIFIED_LISTINGS, new HashSet<String>());
+        Set<String> notifiedIds = new HashSet<>(sharedPreferences.getStringSet(KEY_NOTIFIED_LISTINGS, new HashSet<>()));
         notifiedIds.add(listingId);
         sharedPreferences.edit().putStringSet(KEY_NOTIFIED_LISTINGS, notifiedIds).apply();
+    }
+
+    public void addOrderHistoryEntry(String userEmail, String type, String entry) {
+        String key = buildOrderHistoryKey(userEmail, type);
+        Type typeToken = new TypeToken<List<String>>() {}.getType();
+        String historyJson = sharedPreferences.getString(key, null);
+        List<String> history = historyJson != null ? gson.fromJson(historyJson, typeToken) : new ArrayList<>();
+        history.add(0, entry);
+        sharedPreferences.edit().putString(key, gson.toJson(history)).apply();
+    }
+
+    public List<String> getOrderHistory(String userEmail, String type) {
+        String key = buildOrderHistoryKey(userEmail, type);
+        Type typeToken = new TypeToken<List<String>>() {}.getType();
+        String historyJson = sharedPreferences.getString(key, null);
+        if (historyJson == null) {
+            return new ArrayList<>();
+        }
+        List<String> history = gson.fromJson(historyJson, typeToken);
+        return history != null ? history : new ArrayList<>();
+    }
+
+    private String buildOrderHistoryKey(String userEmail, String type) {
+        return KEY_ORDER_HISTORY + "_" + type + "_" + userEmail;
     }
 }

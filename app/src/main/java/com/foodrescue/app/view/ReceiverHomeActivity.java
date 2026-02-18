@@ -27,9 +27,9 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 
 public class ReceiverHomeActivity extends AppCompatActivity implements ListingAdapter.OnListingClickListener {
 
@@ -78,27 +78,35 @@ public class ReceiverHomeActivity extends AppCompatActivity implements ListingAd
     private void loadAllListings() {
         firebaseDatabaseService.getAllListings()
                 .addOnSuccessListener(querySnapshot -> {
-                    Map<String, Listing> mergedListings = new LinkedHashMap<>();
+                    List<Listing> mergedListings = new ArrayList<>();
+                    Set<String> seenIds = new HashSet<>();
 
                     for (Listing listing : sharedPreferencesManager.getAllListings()) {
                         if (listing != null && isListingValid(listing)) {
-                            String key = listing.getId() != null ? listing.getId() : listing.getTitle() + "_" + listing.getDonorEmail();
-                            mergedListings.put(key, listing);
+                            mergedListings.add(listing);
+                            if (listing.getId() != null) {
+                                seenIds.add(listing.getId());
+                            }
                         }
                     }
 
                     for (DocumentSnapshot doc : querySnapshot.getDocuments()) {
                         Listing listing = doc.toObject(Listing.class);
                         if (listing != null && isListingValid(listing)) {
-                            String key = listing.getId() != null ? listing.getId() : doc.getId();
-                            mergedListings.put(key, listing);
+                            String id = listing.getId();
+                            if (id == null || !seenIds.contains(id)) {
+                                mergedListings.add(listing);
+                            }
+                            if (id != null) {
+                                seenIds.add(id);
+                            }
                             if (listing.getId() != null) {
                                 sharedPreferencesManager.markListingNotified(listing.getId());
                             }
                         }
                     }
                     allListings.clear();
-                    allListings.addAll(mergedListings.values());
+                    allListings.addAll(mergedListings);
                     listingAdapter.updateListings(allListings);
                     updateEmptyState();
                 })
@@ -200,15 +208,34 @@ public class ReceiverHomeActivity extends AppCompatActivity implements ListingAd
         if (id == R.id.action_profile) {
             startActivity(new Intent(this, ProfileActivity.class));
             return true;
-        } else if (id == R.id.action_map) {
-            startActivity(new Intent(this, MapActivity.class));
-            return true;
         }
         return super.onOptionsItemSelected(item);
     }
 
     private boolean isListingValid(Listing listing) {
-        return !listing.isClaimed();
+        return listing != null
+                && getAvailableQuantity(listing) > 0
+                && !listing.isClaimed()
+                && !"COMPLETED".equalsIgnoreCase(listing.getOrderStatus());
+    }
+
+    private int getAvailableQuantity(Listing listing) {
+        if (listing == null || listing.getQuantity() == null) {
+            return 0;
+        }
+        try {
+            return Math.max(0, Integer.parseInt(listing.getQuantity()));
+        } catch (NumberFormatException e) {
+            String digits = listing.getQuantity().replaceAll("[^0-9]", "");
+            if (digits.isEmpty()) {
+                return 0;
+            }
+            try {
+                return Math.max(0, Integer.parseInt(digits));
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
     }
 
     private void updateEmptyState() {

@@ -111,6 +111,16 @@
                         android:textStyle="bold|italic"
                         android:visibility="gone" />
 
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipOrderStatus"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="12dp"
+                        android:textColor="@color/white"
+                        android:visibility="gone"
+                        app:chipCornerRadius="14dp"
+                        app:chipMinHeight="30dp" />
+
                     <Button
                         android:id="@+id/buttonClaimListing"
                         android:layout_width="match_parent"
@@ -130,7 +140,15 @@
                         android:id="@+id/buttonDeleteListing"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:layout_marginBottom="8dp"
                         android:text="Delete Listing"
+                        android:visibility="gone" />
+
+                    <Button
+                        android:id="@+id/buttonUpdateOrderStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Update Order Status"
                         android:visibility="gone" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

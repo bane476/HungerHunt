@@ -3,6 +3,7 @@ package com.foodrescue.app.model;
 public class Listing {
     private String id;
     private String donorEmail;
+    private String businessName;
     private String title;
     private String quantity;
     private String price;
@@ -13,26 +14,32 @@ public class Listing {
     private boolean isClaimed;
     private String claimedByEmail;
     private String paymentMethod;
+    private String orderStatus;
 
     public Listing() {
         // Required for Firebase deserialization
     }
 
     public Listing(String id, String donorEmail, String title, String quantity, String description, String pickupWindow, double latitude, double longitude) {
-        this(id, donorEmail, title, quantity, null, description, pickupWindow, latitude, longitude, false, null, null);
+        this(id, donorEmail, null, title, quantity, null, description, pickupWindow, latitude, longitude, false, null, null);
     }
 
     public Listing(String id, String donorEmail, String title, String quantity, String price, String description, String pickupWindow, double latitude, double longitude) {
-        this(id, donorEmail, title, quantity, price, description, pickupWindow, latitude, longitude, false, null, null);
+        this(id, donorEmail, null, title, quantity, price, description, pickupWindow, latitude, longitude, false, null, null);
     }
 
     public Listing(String id, String donorEmail, String title, String quantity, String description, String pickupWindow, double latitude, double longitude, boolean isClaimed, String claimedByEmail) {
-        this(id, donorEmail, title, quantity, null, description, pickupWindow, latitude, longitude, isClaimed, claimedByEmail, null);
+        this(id, donorEmail, null, title, quantity, null, description, pickupWindow, latitude, longitude, isClaimed, claimedByEmail, null);
     }
 
     public Listing(String id, String donorEmail, String title, String quantity, String price, String description, String pickupWindow, double latitude, double longitude, boolean isClaimed, String claimedByEmail, String paymentMethod) {
+        this(id, donorEmail, null, title, quantity, price, description, pickupWindow, latitude, longitude, isClaimed, claimedByEmail, paymentMethod);
+    }
+
+    public Listing(String id, String donorEmail, String businessName, String title, String quantity, String price, String description, String pickupWindow, double latitude, double longitude, boolean isClaimed, String claimedByEmail, String paymentMethod) {
         this.id = id;
         this.donorEmail = donorEmail;
+        this.businessName = businessName;
         this.title = title;
         this.quantity = quantity;
         this.price = price;
@@ -43,6 +50,7 @@ public class Listing {
         this.isClaimed = isClaimed;
         this.claimedByEmail = claimedByEmail;
         this.paymentMethod = paymentMethod;
+        this.orderStatus = null;
     }
 
     public String getId() {
@@ -55,6 +63,14 @@ public class Listing {
 
     public void setDonorEmail(String donorEmail) {
         this.donorEmail = donorEmail;
+    }
+
+    public String getBusinessName() {
+        return businessName;
+    }
+
+    public void setBusinessName(String businessName) {
+        this.businessName = businessName;
     }
 
     public String getTitle() {
@@ -139,5 +155,13 @@ public class Listing {
 
     public void setPaymentMethod(String paymentMethod) {
         this.paymentMethod = paymentMethod;
+    }
+
+    public String getOrderStatus() {
+        return orderStatus;
+    }
+
+    public void setOrderStatus(String orderStatus) {
+        this.orderStatus = orderStatus;
     }
 }

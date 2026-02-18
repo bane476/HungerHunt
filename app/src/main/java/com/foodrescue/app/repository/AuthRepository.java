@@ -23,6 +23,18 @@ public class AuthRepository {
     }
 
     public void registerUser(@NonNull User user, @NonNull AuthResultCallback callback) {
+        User existingUser = sharedPreferencesManager.getUser(user.getEmail());
+        if (existingUser != null) {
+            String existingRole = normalizeRole(existingUser.getRole());
+            String requestedRole = normalizeRole(user.getRole());
+            if (!existingRole.equals(requestedRole)) {
+                callback.onError("Email is already registered as " + existingRole + ". Use a different email.");
+                return;
+            }
+            callback.onError("This email is already registered.");
+            return;
+        }
+
         if (!firebaseAuthService.isFirebaseConfigured()) {
             sharedPreferencesManager.saveUser(user);
             sharedPreferencesManager.saveLoggedInUserEmail(user.getEmail());
@@ -62,8 +74,9 @@ public class AuthRepository {
             public void onSuccess() {
                 User localUser = sharedPreferencesManager.getUser(email);
                 if (localUser == null) {
-                    localUser = new User(email, email, "", "", "Receiver");
-                    sharedPreferencesManager.saveUser(localUser);
+                    firebaseAuthService.signOut();
+                    callback.onError("Profile not found for this email. Please register first.");
+                    return;
                 }
                 sharedPreferencesManager.saveLoggedInUserEmail(email);
                 callback.onSuccess(localUser, "Login successful");
@@ -79,5 +92,14 @@ public class AuthRepository {
     public void logoutUser() {
         firebaseAuthService.signOut();
         sharedPreferencesManager.saveLoggedInUserEmail(null);
+    }
+
+    private String normalizeRole(String role) {
+        if ("Donor".equalsIgnoreCase(role)
+                || "Provider".equalsIgnoreCase(role)
+                || "Business".equalsIgnoreCase(role)) {
+            return "Business";
+        }
+        return "Customer";
     }
 }

@@ -18,6 +18,7 @@ import com.foodrescue.app.model.Listing;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class ListingAdapter extends RecyclerView.Adapter<ListingAdapter.ListingViewHolder> implements Filterable { // Implements Filterable
 
@@ -48,6 +49,11 @@ public class ListingAdapter extends RecyclerView.Adapter<ListingAdapter.ListingV
         holder.textViewTitle.setText(listing.getTitle());
         String priceText = (listing.getPrice() == null || listing.getPrice().trim().isEmpty()) ? "Free" : listing.getPrice();
         holder.textViewQuantity.setText("Qty: " + listing.getQuantity() + " | Price: " + priceText);
+        String businessName = listing.getBusinessName();
+        if (businessName == null || businessName.trim().isEmpty()) {
+            businessName = listing.getDonorEmail();
+        }
+        holder.textViewBusiness.setText("Business: " + businessName);
         int textPrimary = ContextCompat.getColor(holder.itemView.getContext(), R.color.text_primary);
         int textSecondary = ContextCompat.getColor(holder.itemView.getContext(), R.color.text_secondary);
         int successColor = ContextCompat.getColor(holder.itemView.getContext(), R.color.success);
@@ -55,16 +61,20 @@ public class ListingAdapter extends RecyclerView.Adapter<ListingAdapter.ListingV
         if (listing.isClaimed()) {
             holder.textViewTitle.setTextColor(Color.GRAY);
             holder.textViewQuantity.setTextColor(Color.GRAY);
+            holder.textViewBusiness.setTextColor(textSecondary);
             holder.textViewStatus.setTextColor(textSecondary);
             holder.textViewTitle.setPaintFlags(holder.textViewTitle.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
             holder.textViewQuantity.setPaintFlags(holder.textViewQuantity.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+            holder.textViewBusiness.setPaintFlags(holder.textViewBusiness.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
             holder.textViewStatus.setText("Claimed by: " + listing.getClaimedByEmail());
         } else {
             holder.textViewTitle.setTextColor(textPrimary);
             holder.textViewQuantity.setTextColor(textSecondary);
+            holder.textViewBusiness.setTextColor(textSecondary);
             holder.textViewStatus.setTextColor(successColor);
             holder.textViewTitle.setPaintFlags(holder.textViewTitle.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
             holder.textViewQuantity.setPaintFlags(holder.textViewQuantity.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
+            holder.textViewBusiness.setPaintFlags(holder.textViewBusiness.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
             holder.textViewStatus.setText("Available");
         }
 
@@ -84,12 +94,14 @@ public class ListingAdapter extends RecyclerView.Adapter<ListingAdapter.ListingV
     public static class ListingViewHolder extends RecyclerView.ViewHolder {
         public TextView textViewTitle;
         public TextView textViewQuantity;
+        public TextView textViewBusiness;
         public TextView textViewStatus;
 
         public ListingViewHolder(@NonNull View itemView) {
             super(itemView);
             textViewTitle = itemView.findViewById(R.id.textViewTitle);
             textViewQuantity = itemView.findViewById(R.id.textViewQuantity);
+            textViewBusiness = itemView.findViewById(R.id.textViewBusiness);
             textViewStatus = itemView.findViewById(R.id.textViewStatus);
         }
     }
@@ -114,7 +126,9 @@ public class ListingAdapter extends RecyclerView.Adapter<ListingAdapter.ListingV
                         // Filter by title, description, or donor email (you can expand this)
                         if (listing.getTitle().toLowerCase().contains(charString.toLowerCase()) ||
                             listing.getDescription().toLowerCase().contains(charString.toLowerCase()) ||
-                            listing.getDonorEmail().toLowerCase().contains(charString.toLowerCase())) {
+                            listing.getDonorEmail().toLowerCase().contains(charString.toLowerCase()) ||
+                            (listing.getBusinessName() != null
+                                    && listing.getBusinessName().toLowerCase(Locale.US).contains(charString.toLowerCase(Locale.US)))) {
                             filteredList.add(listing);
                         }
                     }

@@ -109,8 +109,12 @@ public class AddListingActivity extends AppCompatActivity {
 
         String donorEmail = sharedPreferencesManager.getLoggedInUserEmail();
         if (donorEmail == null) {
-            Toast.makeText(this, "Error: Donor not logged in", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Error: Business account not logged in", Toast.LENGTH_SHORT).show();
             return;
+        }
+        String businessName = "";
+        if (sharedPreferencesManager.getUser(donorEmail) != null) {
+            businessName = sharedPreferencesManager.getUser(donorEmail).getBusinessName();
         }
 
         double[] simulatedCoordinates = getSimulatedCoordinatesForDonor(donorEmail);
@@ -120,7 +124,7 @@ public class AddListingActivity extends AppCompatActivity {
         if (currentListing == null) {
             // New listing
             String id = UUID.randomUUID().toString();
-            Listing newListing = new Listing(id, donorEmail, title, quantity, price, description, pickupWindow, latitude, longitude);
+            Listing newListing = new Listing(id, donorEmail, businessName, title, quantity, price, description, pickupWindow, latitude, longitude, false, null, null);
             sharedPreferencesManager.saveListing(newListing);
             Toast.makeText(this, "Listing added successfully!", Toast.LENGTH_SHORT).show();
             // Send notification for new listing
@@ -132,6 +136,7 @@ public class AddListingActivity extends AppCompatActivity {
             Listing updatedListing = new Listing(
                     currentListing.getId(),
                     donorEmail,
+                    businessName,
                     title,
                     quantity,
                     price,

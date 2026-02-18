@@ -103,7 +103,7 @@ public class LoginActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     buttonLogin.setEnabled(true);
                     Toast.makeText(LoginActivity.this, message, Toast.LENGTH_SHORT).show();
-                    if ("Donor".equalsIgnoreCase(user.getRole())) {
+                    if (isBusinessRole(user.getRole())) {
                         startActivity(new Intent(LoginActivity.this, DonorHomeActivity.class));
                     } else {
                         startActivity(new Intent(LoginActivity.this, ReceiverHomeActivity.class));
@@ -121,4 +121,11 @@ public class LoginActivity extends AppCompatActivity {
             }
         });
     }
+
+    private boolean isBusinessRole(String role) {
+        return "Business".equalsIgnoreCase(role)
+                || "Provider".equalsIgnoreCase(role)
+                || "Donor".equalsIgnoreCase(role);
+    }
+
 }

@@ -68,7 +68,7 @@ public class DonorHomeActivity extends AppCompatActivity implements ListingAdapt
 
     private void loadDonorListings() {
         if (loggedInDonorEmail == null) {
-            Toast.makeText(this, "Error: Donor not logged in", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Error: Business account not logged in", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -102,9 +102,6 @@ public class DonorHomeActivity extends AppCompatActivity implements ListingAdapt
         int id = item.getItemId();
         if (id == R.id.action_profile) {
             startActivity(new Intent(this, ProfileActivity.class));
-            return true;
-        } else if (id == R.id.action_map) {
-            startActivity(new Intent(this, MapActivity.class));
             return true;
         }
         return super.onOptionsItemSelected(item);

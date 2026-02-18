@@ -111,7 +111,7 @@ public class FirebaseAuthService {
                 return "Invalid email or password.";
             }
             if ("ERROR_EMAIL_ALREADY_IN_USE".equals(code)) {
-                return "This email is already registered.";
+                return "This email is already registered in Firebase cloud. Local storage may already be cleared.";
             }
             if ("ERROR_WEAK_PASSWORD".equals(code)) {
                 return "Password must be at least 6 characters.";
