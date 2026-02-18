@@ -12,28 +12,44 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar; // Import Toolbar
+import androidx.lifecycle.ViewModelProvider;
 
 import com.foodrescue.app.R;
 import com.foodrescue.app.data.SharedPreferencesManager;
 import com.foodrescue.app.model.User;
+import com.foodrescue.app.viewmodel.AuthViewModel;
+import com.google.android.material.textfield.TextInputEditText; // Import TextInputEditText
 
 public class ProfileActivity extends AppCompatActivity {
 
     private TextView textViewEmail;
-    private EditText editTextProfileName, editTextProfilePhone;
+    private TextInputEditText editTextProfileName, editTextProfilePhone; // Changed to TextInputEditText
     private RadioGroup radioGroupProfileRole;
     private RadioButton radioButtonProfileDonor, radioButtonProfileReceiver;
     private Button buttonSaveProfile, buttonLogout;
+    private Toolbar toolbar; // Declare Toolbar
 
     private SharedPreferencesManager sharedPreferencesManager;
     private User currentUser;
+    private AuthViewModel authViewModel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_profile);
 
+        toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        // Enable the Up button
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setDisplayShowHomeEnabled(true);
+            getSupportActionBar().setTitle("User Profile"); // Set toolbar title
+        }
+
         sharedPreferencesManager = new SharedPreferencesManager(this);
+        authViewModel = new ViewModelProvider(this).get(AuthViewModel.class);
 
         textViewEmail = findViewById(R.id.textViewEmail);
         editTextProfileName = findViewById(R.id.editTextProfileName);
@@ -59,6 +75,12 @@ public class ProfileActivity extends AppCompatActivity {
                 logoutUser();
             }
         });
+    }
+
+    @Override
+    public boolean onSupportNavigateUp() {
+        onBackPressed();
+        return true;
     }
 
     private void loadUserProfile() {
@@ -112,7 +134,7 @@ public class ProfileActivity extends AppCompatActivity {
     }
 
     private void logoutUser() {
-        sharedPreferencesManager.saveLoggedInUserEmail(null); // Clear logged in user
+        authViewModel.logoutUser();
         Intent intent = new Intent(ProfileActivity.this, LoginActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(intent);

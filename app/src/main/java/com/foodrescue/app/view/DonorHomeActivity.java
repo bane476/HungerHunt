@@ -2,14 +2,15 @@ package com.foodrescue.app.view;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.view.Menu; // Import Menu
-import android.view.MenuItem; // Import MenuItem
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.SearchView;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull; // Import for @NonNull
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar; // Import Toolbar
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -32,11 +33,15 @@ public class DonorHomeActivity extends AppCompatActivity implements ListingAdapt
     private SharedPreferencesManager sharedPreferencesManager;
     private String loggedInDonorEmail;
     private SearchView searchViewListings;
+    private Toolbar toolbar; // Declare Toolbar
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_donor_home);
+
+        toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
 
         sharedPreferencesManager = new SharedPreferencesManager(this);
         loggedInDonorEmail = sharedPreferencesManager.getLoggedInUserEmail();
@@ -69,6 +74,7 @@ public class DonorHomeActivity extends AppCompatActivity implements ListingAdapt
             }
         });
     }
+
 
     @Override
     protected void onResume() {

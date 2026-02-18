@@ -1,3 +1,5 @@
 /build
 prompt.txt
 error.txt
+.gradle-local
+.idea

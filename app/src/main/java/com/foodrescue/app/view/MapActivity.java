@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.preference.PreferenceManager;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar; // Import Toolbar
 
 import com.foodrescue.app.R;
 import com.foodrescue.app.data.SharedPreferencesManager;
@@ -25,6 +26,7 @@ public class MapActivity extends AppCompatActivity {
     private MapView mapView;
     private SharedPreferencesManager sharedPreferencesManager;
     private List<Listing> listings;
+    private Toolbar toolbar; // Declare Toolbar
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,6 +37,15 @@ public class MapActivity extends AppCompatActivity {
         Configuration.getInstance().setUserAgentValue(getPackageName());
 
         setContentView(R.layout.activity_map);
+
+        toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        // Enable the Up button
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setDisplayShowHomeEnabled(true);
+            getSupportActionBar().setTitle("Map"); // Set toolbar title
+        }
 
         sharedPreferencesManager = new SharedPreferencesManager(this);
         listings = sharedPreferencesManager.getAllListings();
@@ -82,14 +93,8 @@ public class MapActivity extends AppCompatActivity {
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-        mapView.onResume(); //needed for compass, my location overlays, v6.0.0 and up
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        mapView.onPause();  //needed for compass, my location overlays, v6.0.0 and up
+    public boolean onSupportNavigateUp() {
+        onBackPressed();
+        return true;
     }
 }

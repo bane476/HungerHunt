@@ -8,6 +8,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar; // Import Toolbar
 
 import com.foodrescue.app.R;
 import com.foodrescue.app.data.SharedPreferencesManager;
@@ -25,11 +26,21 @@ public class ListingDetailsActivity extends AppCompatActivity {
     private Listing currentListing; // Store the current listing
     private String loggedInUserEmail;
     private User loggedInUser;
+    private Toolbar toolbar; // Declare Toolbar
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_listing_details);
+
+        toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        // Enable the Up button
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setDisplayShowHomeEnabled(true);
+            getSupportActionBar().setTitle("Listing Details"); // Set toolbar title
+        }
 
         sharedPreferencesManager = new SharedPreferencesManager(this);
 
@@ -127,6 +138,12 @@ public class ListingDetailsActivity extends AppCompatActivity {
                 }
             }
         });
+    }
+
+    @Override
+    public boolean onSupportNavigateUp() {
+        onBackPressed();
+        return true;
     }
 
     private void updateClaimStatusUI() {

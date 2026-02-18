@@ -52,3 +52,4 @@ gen/
 *.rej
 prompt.txt
 error.txt
+app/google-services.json

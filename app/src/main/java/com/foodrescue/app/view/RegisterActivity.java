@@ -9,23 +9,26 @@ import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.lifecycle.ViewModelProvider;
 import com.foodrescue.app.R;
-import com.foodrescue.app.data.SharedPreferencesManager;
 import com.foodrescue.app.model.User;
+import com.foodrescue.app.repository.AuthRepository;
+import com.foodrescue.app.utils.Validator;
+import com.foodrescue.app.viewmodel.AuthViewModel;
 
 public class RegisterActivity extends AppCompatActivity {
 
     private EditText editTextName, editTextEmail, editTextPassword, editTextPhone;
     private RadioGroup radioGroupRole;
     private Button buttonRegister;
-    private SharedPreferencesManager sharedPreferencesManager;
+    private AuthViewModel authViewModel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_register);
 
-        sharedPreferencesManager = new SharedPreferencesManager(this);
+        authViewModel = new ViewModelProvider(this).get(AuthViewModel.class);
 
         editTextName = findViewById(R.id.editTextName);
         editTextEmail = findViewById(R.id.editTextEmail);
@@ -53,14 +56,37 @@ public class RegisterActivity extends AppCompatActivity {
             Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show();
             return;
         }
+        if (!Validator.isValidEmail(email)) {
+            Toast.makeText(this, "Please enter a valid email", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (!Validator.isStrongEnoughPassword(password)) {
+            Toast.makeText(this, "Password must be at least 6 characters", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
         RadioButton selectedRadioButton = findViewById(selectedRoleId);
         String role = selectedRadioButton.getText().toString();
 
         User user = new User(name, email, password, phone, role);
-        sharedPreferencesManager.saveUser(user);
+        buttonRegister.setEnabled(false);
+        authViewModel.registerUser(user, new AuthRepository.AuthResultCallback() {
+            @Override
+            public void onSuccess(User user, String message) {
+                runOnUiThread(() -> {
+                    buttonRegister.setEnabled(true);
+                    Toast.makeText(RegisterActivity.this, message, Toast.LENGTH_SHORT).show();
+                    finish();
+                });
+            }
 
-        Toast.makeText(this, "Registration successful", Toast.LENGTH_SHORT).show();
-        finish();
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    buttonRegister.setEnabled(true);
+                    Toast.makeText(RegisterActivity.this, message, Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
     }
 }

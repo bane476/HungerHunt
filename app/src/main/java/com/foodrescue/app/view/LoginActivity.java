@@ -14,10 +14,13 @@ import android.widget.Toast;
 import androidx.annotation.NonNull; // Import for @NonNull
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat; // Import for ActivityCompat
+import androidx.lifecycle.ViewModelProvider;
 import com.foodrescue.app.R;
-import com.foodrescue.app.data.SharedPreferencesManager;
 import com.foodrescue.app.model.User;
+import com.foodrescue.app.repository.AuthRepository;
 import com.foodrescue.app.utils.NotificationHelper; // Import NotificationHelper
+import com.foodrescue.app.utils.Validator;
+import com.foodrescue.app.viewmodel.AuthViewModel;
 
 public class LoginActivity extends AppCompatActivity {
 
@@ -25,14 +28,14 @@ public class LoginActivity extends AppCompatActivity {
     private EditText editTextEmail, editTextPassword;
     private Button buttonLogin;
     private TextView textViewRegister;
-    private SharedPreferencesManager sharedPreferencesManager;
+    private AuthViewModel authViewModel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
 
-        sharedPreferencesManager = new SharedPreferencesManager(this);
+        authViewModel = new ViewModelProvider(this).get(AuthViewModel.class);
 
         // Create notification channel
         NotificationHelper.createNotificationChannel(this);
@@ -84,20 +87,38 @@ public class LoginActivity extends AppCompatActivity {
             Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show();
             return;
         }
-
-        User user = sharedPreferencesManager.getUser(email);
-
-        if (user != null && user.getPassword().equals(password)) {
-            Toast.makeText(this, "Login successful", Toast.LENGTH_SHORT).show();
-            sharedPreferencesManager.saveLoggedInUserEmail(email); // Save logged-in user's email
-            if (user.getRole().equals("Donor")) {
-                startActivity(new Intent(LoginActivity.this, DonorHomeActivity.class));
-            } else {
-                startActivity(new Intent(LoginActivity.this, ReceiverHomeActivity.class));
-            }
-            finish();
-        } else {
-            Toast.makeText(this, "Invalid email or password", Toast.LENGTH_SHORT).show();
+        if (!Validator.isValidEmail(email)) {
+            Toast.makeText(this, "Please enter a valid email", Toast.LENGTH_SHORT).show();
+            return;
         }
+        if (!Validator.isStrongEnoughPassword(password)) {
+            Toast.makeText(this, "Password must be at least 6 characters", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        buttonLogin.setEnabled(false);
+        authViewModel.loginUser(email, password, new AuthRepository.AuthResultCallback() {
+            @Override
+            public void onSuccess(User user, String message) {
+                runOnUiThread(() -> {
+                    buttonLogin.setEnabled(true);
+                    Toast.makeText(LoginActivity.this, message, Toast.LENGTH_SHORT).show();
+                    if ("Donor".equalsIgnoreCase(user.getRole())) {
+                        startActivity(new Intent(LoginActivity.this, DonorHomeActivity.class));
+                    } else {
+                        startActivity(new Intent(LoginActivity.this, ReceiverHomeActivity.class));
+                    }
+                    finish();
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    buttonLogin.setEnabled(true);
+                    Toast.makeText(LoginActivity.this, message, Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
     }
 }

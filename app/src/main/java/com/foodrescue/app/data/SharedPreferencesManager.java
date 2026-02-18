@@ -18,6 +18,7 @@ public class SharedPreferencesManager {
     private static final String KEY_USER = "user";
     private static final String KEY_LOGGED_IN_USER_EMAIL = "loggedInUserEmail";
     private static final String KEY_LISTINGS = "listings";
+    private static final String KEY_NOTIFIED_LISTINGS = "notifiedListings";
     private SharedPreferences sharedPreferences;
     private Gson gson;
 
@@ -91,5 +92,16 @@ public class SharedPreferencesManager {
         // Add the updated listing
         listingsJson.add(gson.toJson(updatedListing));
         sharedPreferences.edit().putStringSet(KEY_LISTINGS, listingsJson).apply();
+    }
+
+    public boolean isListingNotified(String listingId) {
+        Set<String> notifiedIds = sharedPreferences.getStringSet(KEY_NOTIFIED_LISTINGS, new HashSet<String>());
+        return notifiedIds.contains(listingId);
+    }
+
+    public void markListingNotified(String listingId) {
+        Set<String> notifiedIds = sharedPreferences.getStringSet(KEY_NOTIFIED_LISTINGS, new HashSet<String>());
+        notifiedIds.add(listingId);
+        sharedPreferences.edit().putStringSet(KEY_NOTIFIED_LISTINGS, notifiedIds).apply();
     }
 }

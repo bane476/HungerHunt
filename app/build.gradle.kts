@@ -2,6 +2,10 @@ plugins {
     id("com.android.application")
 }
 
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.foodrescue.app"
     compileSdk = 34
@@ -47,4 +51,12 @@ dependencies {
 
     // OSMdroid
     implementation("org.osmdroid:osmdroid-android:6.1.18")
+
+    // Firebase (Firestore)
+    implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
+    implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-auth")
+
+    // Location services
+    implementation("com.google.android.gms:play-services-location:21.2.0")
 }
