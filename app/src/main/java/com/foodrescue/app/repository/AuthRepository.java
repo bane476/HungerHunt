@@ -1,14 +1,18 @@
 package com.foodrescue.app.repository;
 
 import android.content.Context;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 
 import com.foodrescue.app.data.SharedPreferencesManager;
 import com.foodrescue.app.firebase.FirebaseAuthService;
+import com.foodrescue.app.firebase.FirebaseDatabaseService;
 import com.foodrescue.app.model.User;
 
 public class AuthRepository {
+    private static final String TAG = "AuthRepository";
+
     public interface AuthResultCallback {
         void onSuccess(User user, String message);
         void onError(String message);
@@ -16,10 +20,12 @@ public class AuthRepository {
 
     private final SharedPreferencesManager sharedPreferencesManager;
     private final FirebaseAuthService firebaseAuthService;
+    private final FirebaseDatabaseService firebaseDatabaseService;
 
     public AuthRepository(@NonNull Context context) {
         sharedPreferencesManager = new SharedPreferencesManager(context);
         firebaseAuthService = new FirebaseAuthService(context);
+        firebaseDatabaseService = new FirebaseDatabaseService(context);
     }
 
     public void registerUser(@NonNull User user, @NonNull AuthResultCallback callback) {
@@ -48,6 +54,9 @@ public class AuthRepository {
                 sharedPreferencesManager.saveUser(user);
                 sharedPreferencesManager.saveLoggedInUserEmail(user.getEmail());
                 callback.onSuccess(user, "Registration successful");
+
+                firebaseDatabaseService.saveUserProfile(user)
+                        .addOnFailureListener(e -> Log.e(TAG, "Cloud profile sync failed after registration", e));
             }
 
             @Override
@@ -73,13 +82,27 @@ public class AuthRepository {
             @Override
             public void onSuccess() {
                 User localUser = sharedPreferencesManager.getUser(email);
-                if (localUser == null) {
-                    firebaseAuthService.signOut();
-                    callback.onError("Profile not found for this email. Please register first.");
+                if (localUser != null) {
+                    sharedPreferencesManager.saveLoggedInUserEmail(email);
+                    callback.onSuccess(localUser, "Login successful");
                     return;
                 }
-                sharedPreferencesManager.saveLoggedInUserEmail(email);
-                callback.onSuccess(localUser, "Login successful");
+
+                firebaseDatabaseService.getUserProfile(email)
+                        .addOnSuccessListener(restoredUser -> {
+                            if (restoredUser == null) {
+                                firebaseAuthService.signOut();
+                                callback.onError("Profile not found for this email. Please register first.");
+                                return;
+                            }
+                            sharedPreferencesManager.saveUser(restoredUser);
+                            sharedPreferencesManager.saveLoggedInUserEmail(email);
+                            callback.onSuccess(restoredUser, "Login successful");
+                        })
+                        .addOnFailureListener(e -> {
+                            firebaseAuthService.signOut();
+                            callback.onError("Login succeeded, but profile restore failed. Please try again.");
+                        });
             }
 
             @Override
@@ -92,6 +115,19 @@ public class AuthRepository {
     public void logoutUser() {
         firebaseAuthService.signOut();
         sharedPreferencesManager.saveLoggedInUserEmail(null);
+    }
+
+    public void saveUserProfile(@NonNull User user, @NonNull AuthResultCallback callback) {
+        sharedPreferencesManager.saveUser(user);
+
+        if (!firebaseAuthService.isFirebaseConfigured()) {
+            callback.onSuccess(user, "Profile updated successfully!");
+            return;
+        }
+
+        firebaseDatabaseService.saveUserProfile(user)
+                .addOnSuccessListener(unused -> callback.onSuccess(user, "Profile updated successfully!"))
+                .addOnFailureListener(e -> callback.onSuccess(user, "Profile updated locally, but cloud sync failed."));
     }
 
     private String normalizeRole(String role) {

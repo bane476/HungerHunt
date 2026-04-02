@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/green_dark" />
+    <item>
+        <inset
+            android:drawable="@drawable/splash_brand_mark"
+            android:insetLeft="72dp"
+            android:insetTop="180dp"
+            android:insetRight="72dp"
+            android:insetBottom="300dp" />
+    </item>
+</layer-list>

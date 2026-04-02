@@ -1,8 +1,8 @@
 <resources>
-    <string name="app_name">MealMate</string>
+    <string name="app_name">HungerHunt</string>
     <string name="login_email_hint">Email</string>
     <string name="login_password_hint">Password</string>
-    <string name="login_title">Welcome to MealMate</string>
+    <string name="login_title">Welcome to HungerHunt</string>
     <string name="login_subtitle">Connect businesses and customers for fast, reliable food pickups.</string>
     <string name="login_button_text">Login</string>
     <string name="login_register_text">Don\'t have an account? Register here.</string>
@@ -19,6 +19,7 @@
     <string name="add_listing_price_hint">Price</string>
     <string name="add_listing_description_hint">Description</string>
     <string name="add_listing_pickup_window_hint">Pickup Time Window</string>
+    <string name="add_listing_location_button">Use Current Seller Location</string>
     <string name="add_listing_button_text">Add Listing</string>
     <string name="add_listing_form_title">Listing Details</string>
     <string name="item_listing_title_label">Title</string>

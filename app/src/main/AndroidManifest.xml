@@ -6,8 +6,6 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -19,6 +17,7 @@
         android:theme="@style/Theme.App">
         <activity
             android:name="com.foodrescue.app.view.LoginActivity"
+            android:theme="@style/Theme.App.Splash"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -27,12 +26,13 @@
             </intent-filter>
         </activity>
         <activity android:name="com.foodrescue.app.view.RegisterActivity" />
-        <activity android:name="com.foodrescue.app.view.DonorHomeActivity" />
-        <activity android:name="com.foodrescue.app.view.ReceiverHomeActivity" />
+        <activity android:name="com.foodrescue.app.view.BusinessHomeActivity" />
+        <activity android:name="com.foodrescue.app.view.CustomerHomeActivity" />
         <activity android:name="com.foodrescue.app.view.AddListingActivity" />
         <activity android:name="com.foodrescue.app.view.ListingDetailsActivity" />
         <activity android:name="com.foodrescue.app.view.MapActivity" />
         <activity android:name="com.foodrescue.app.view.ProfileActivity" />
+        <activity android:name="com.foodrescue.app.view.MyOrdersActivity" />
     </application>
 
 </manifest>

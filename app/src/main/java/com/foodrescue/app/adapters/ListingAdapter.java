@@ -2,11 +2,13 @@ package com.foodrescue.app.adapters;
 
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.net.Uri;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Filter;
 import android.widget.Filterable;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -15,6 +17,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.foodrescue.app.R;
 import com.foodrescue.app.model.Listing;
+import com.bumptech.glide.Glide;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,6 +50,17 @@ public class ListingAdapter extends RecyclerView.Adapter<ListingAdapter.ListingV
     public void onBindViewHolder(@NonNull ListingViewHolder holder, int position) {
         Listing listing = listingsFiltered.get(position); // Use filtered list
         holder.textViewTitle.setText(listing.getTitle());
+        if (listing.getImageUri() != null && !listing.getImageUri().trim().isEmpty()) {
+            Glide.with(holder.itemView)
+                    .load(listing.getImageUri())
+                    .placeholder(R.drawable.ic_launcher_foreground)
+                    .error(R.drawable.ic_launcher_foreground)
+                    .into(holder.imageViewListing);
+        } else {
+            Glide.with(holder.itemView)
+                    .load(R.drawable.ic_launcher_foreground)
+                    .into(holder.imageViewListing);
+        }
         String priceText = (listing.getPrice() == null || listing.getPrice().trim().isEmpty()) ? "Free" : listing.getPrice();
         holder.textViewQuantity.setText("Qty: " + listing.getQuantity() + " | Price: " + priceText);
         String businessName = listing.getBusinessName();
@@ -93,6 +107,7 @@ public class ListingAdapter extends RecyclerView.Adapter<ListingAdapter.ListingV
 
     public static class ListingViewHolder extends RecyclerView.ViewHolder {
         public TextView textViewTitle;
+        public ImageView imageViewListing;
         public TextView textViewQuantity;
         public TextView textViewBusiness;
         public TextView textViewStatus;
@@ -100,6 +115,7 @@ public class ListingAdapter extends RecyclerView.Adapter<ListingAdapter.ListingV
         public ListingViewHolder(@NonNull View itemView) {
             super(itemView);
             textViewTitle = itemView.findViewById(R.id.textViewTitle);
+            imageViewListing = itemView.findViewById(R.id.imageViewListing);
             textViewQuantity = itemView.findViewById(R.id.textViewQuantity);
             textViewBusiness = itemView.findViewById(R.id.textViewBusiness);
             textViewStatus = itemView.findViewById(R.id.textViewStatus);
@@ -118,17 +134,18 @@ public class ListingAdapter extends RecyclerView.Adapter<ListingAdapter.ListingV
             @Override
             protected FilterResults performFiltering(CharSequence charSequence) {
                 String charString = charSequence.toString();
+                String normalizedQuery = charString.toLowerCase(Locale.ROOT);
                 if (charString.isEmpty()) {
                     listingsFiltered = new ArrayList<>(listingList); // Show all if search is empty
                 } else {
                     List<Listing> filteredList = new ArrayList<>();
                     for (Listing listing : listingList) {
                         // Filter by title, description, or donor email (you can expand this)
-                        if (listing.getTitle().toLowerCase().contains(charString.toLowerCase()) ||
-                            listing.getDescription().toLowerCase().contains(charString.toLowerCase()) ||
-                            listing.getDonorEmail().toLowerCase().contains(charString.toLowerCase()) ||
+                        if (listing.getTitle().toLowerCase(Locale.ROOT).contains(normalizedQuery) ||
+                            listing.getDescription().toLowerCase(Locale.ROOT).contains(normalizedQuery) ||
+                            listing.getDonorEmail().toLowerCase(Locale.ROOT).contains(normalizedQuery) ||
                             (listing.getBusinessName() != null
-                                    && listing.getBusinessName().toLowerCase(Locale.US).contains(charString.toLowerCase(Locale.US)))) {
+                                    && listing.getBusinessName().toLowerCase(Locale.ROOT).contains(normalizedQuery))) {
                             filteredList.add(listing);
                         }
                     }

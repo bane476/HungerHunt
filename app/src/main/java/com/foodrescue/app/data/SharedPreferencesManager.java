@@ -20,8 +20,10 @@ public class SharedPreferencesManager {
     private static final String KEY_LISTINGS = "listings";
     private static final String KEY_NOTIFIED_LISTINGS = "notifiedListings";
     private static final String KEY_ORDER_HISTORY = "orderHistory";
+    private static final String KEY_USER_LOCATION_LAT = "userLocationLat";
+    private static final String KEY_USER_LOCATION_LNG = "userLocationLng";
     private static final String KEY_DATA_VERSION = "dataVersion";
-    private static final int CURRENT_DATA_VERSION = 4;
+    private static final int CURRENT_DATA_VERSION = 5;
     private static boolean migrationChecked = false;
     private SharedPreferences sharedPreferences;
     private Gson gson;
@@ -141,5 +143,34 @@ public class SharedPreferencesManager {
 
     private String buildOrderHistoryKey(String userEmail, String type) {
         return KEY_ORDER_HISTORY + "_" + type + "_" + userEmail;
+    }
+
+    public void saveUserLocation(String userEmail, double latitude, double longitude) {
+        sharedPreferences.edit()
+                .putLong(buildUserLocationLatKey(userEmail), Double.doubleToRawLongBits(latitude))
+                .putLong(buildUserLocationLngKey(userEmail), Double.doubleToRawLongBits(longitude))
+                .apply();
+    }
+
+    public boolean hasUserLocation(String userEmail) {
+        return sharedPreferences.contains(buildUserLocationLatKey(userEmail))
+                && sharedPreferences.contains(buildUserLocationLngKey(userEmail));
+    }
+
+    public double[] getUserLocation(String userEmail) {
+        if (!hasUserLocation(userEmail)) {
+            return null;
+        }
+        double latitude = Double.longBitsToDouble(sharedPreferences.getLong(buildUserLocationLatKey(userEmail), 0L));
+        double longitude = Double.longBitsToDouble(sharedPreferences.getLong(buildUserLocationLngKey(userEmail), 0L));
+        return new double[]{latitude, longitude};
+    }
+
+    private String buildUserLocationLatKey(String userEmail) {
+        return KEY_USER_LOCATION_LAT + "_" + userEmail;
+    }
+
+    private String buildUserLocationLngKey(String userEmail) {
+        return KEY_USER_LOCATION_LNG + "_" + userEmail;
     }
 }

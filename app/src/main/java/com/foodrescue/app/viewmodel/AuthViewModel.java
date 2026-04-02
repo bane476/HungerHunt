@@ -24,6 +24,10 @@ public class AuthViewModel extends AndroidViewModel {
         authRepository.loginUser(email, password, callback);
     }
 
+    public void saveUserProfile(@NonNull User user, @NonNull AuthRepository.AuthResultCallback callback) {
+        authRepository.saveUserProfile(user, callback);
+    }
+
     public void logoutUser() {
         authRepository.logoutUser();
     }

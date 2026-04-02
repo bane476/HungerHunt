@@ -6,6 +6,8 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.location.Location;
 
+import android.annotation.SuppressLint;
+
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
@@ -38,20 +40,29 @@ public class LocationHelper {
             listener.onLocationResult(null);
             return;
         }
+        fetchLastLocationInternal(activity, listener);
+    }
+
+    @SuppressLint("MissingPermission")
+    private static void fetchLastLocationInternal(Activity activity, LocationResultListener listener) {
         FusedLocationProviderClient client = LocationServices.getFusedLocationProviderClient(activity);
         CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-        client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.getToken())
-                .addOnSuccessListener(location -> {
-                    if (location != null) {
-                        listener.onLocationResult(location);
-                    } else {
-                        client.getLastLocation()
-                                .addOnSuccessListener(listener::onLocationResult)
-                                .addOnFailureListener(e -> listener.onLocationResult(null));
-                    }
-                })
-                .addOnFailureListener(e -> client.getLastLocation()
-                        .addOnSuccessListener(listener::onLocationResult)
-                        .addOnFailureListener(ex -> listener.onLocationResult(null)));
+        try {
+            client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationTokenSource.getToken())
+                    .addOnSuccessListener(location -> {
+                        if (location != null) {
+                            listener.onLocationResult(location);
+                        } else {
+                            client.getLastLocation()
+                                    .addOnSuccessListener(listener::onLocationResult)
+                                    .addOnFailureListener(e -> listener.onLocationResult(null));
+                        }
+                    })
+                    .addOnFailureListener(e -> client.getLastLocation()
+                            .addOnSuccessListener(listener::onLocationResult)
+                            .addOnFailureListener(ex -> listener.onLocationResult(null)));
+        } catch (SecurityException e) {
+            listener.onLocationResult(null);
+        }
     }
 }

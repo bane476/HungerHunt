@@ -3,6 +3,9 @@ package com.foodrescue.app.view;
 import android.content.Intent;
 import android.location.Location;
 import android.os.Bundle;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -12,6 +15,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar; // Import Toolbar
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -20,6 +24,7 @@ import com.foodrescue.app.adapters.ListingAdapter;
 import com.foodrescue.app.data.SharedPreferencesManager;
 import com.foodrescue.app.firebase.FirebaseDatabaseService;
 import com.foodrescue.app.model.Listing;
+import com.foodrescue.app.utils.LocationHelper;
 import com.foodrescue.app.utils.NotificationHelper;
 import com.google.gson.Gson;
 import com.google.firebase.firestore.DocumentChange;
@@ -31,7 +36,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class ReceiverHomeActivity extends AppCompatActivity implements ListingAdapter.OnListingClickListener {
+public class CustomerHomeActivity extends AppCompatActivity implements ListingAdapter.OnListingClickListener {
 
     private RecyclerView recyclerViewListings;
     private ListingAdapter listingAdapter;
@@ -54,6 +59,7 @@ public class ReceiverHomeActivity extends AppCompatActivity implements ListingAd
 
         toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+        applyBrandedToolbarTitle();
 
         sharedPreferencesManager = new SharedPreferencesManager(this);
         firebaseDatabaseService = new FirebaseDatabaseService(this);
@@ -72,7 +78,7 @@ public class ReceiverHomeActivity extends AppCompatActivity implements ListingAd
     protected void onResume() {
         super.onResume();
         loadAllListings();
-        initializeSimulatedLocationAndStartListener();
+        initializeStoredLocationAndStartListener();
     }
 
     private void loadAllListings() {
@@ -123,12 +129,44 @@ public class ReceiverHomeActivity extends AppCompatActivity implements ListingAd
                 });
     }
 
-    private void initializeSimulatedLocationAndStartListener() {
+    private void initializeStoredLocationAndStartListener() {
+        String loggedInEmail = sharedPreferencesManager.getLoggedInUserEmail();
+        if (loggedInEmail != null) {
+            double[] savedLocation = sharedPreferencesManager.getUserLocation(loggedInEmail);
+            if (savedLocation != null && savedLocation.length >= 2) {
+                Location location = new Location("stored");
+                location.setLatitude(savedLocation[0]);
+                location.setLongitude(savedLocation[1]);
+                lastKnownLocation = location;
+                startListingsListenerIfNeeded();
+                return;
+            }
+        }
+
+        if (!LocationHelper.hasLocationPermission(this)) {
+            LocationHelper.requestLocationPermission(this, 401);
+            fallbackToSimulatedLocation();
+            return;
+        }
+
+        LocationHelper.fetchLastLocation(this, location -> runOnUiThread(() -> {
+            if (location != null) {
+                lastKnownLocation = location;
+                if (loggedInEmail != null) {
+                    sharedPreferencesManager.saveUserLocation(loggedInEmail, location.getLatitude(), location.getLongitude());
+                }
+            } else {
+                fallbackToSimulatedLocation();
+            }
+            startListingsListenerIfNeeded();
+        }));
+    }
+
+    private void fallbackToSimulatedLocation() {
         Location location = new Location("simulated");
         location.setLatitude(SIMULATED_USER_LATITUDE);
         location.setLongitude(SIMULATED_USER_LONGITUDE);
         lastKnownLocation = location;
-        startListingsListenerIfNeeded();
     }
 
     private void startListingsListenerIfNeeded() {
@@ -189,7 +227,7 @@ public class ReceiverHomeActivity extends AppCompatActivity implements ListingAd
 
     @Override
     public void onListingClick(Listing listing) {
-        Intent intent = new Intent(ReceiverHomeActivity.this, ListingDetailsActivity.class);
+        Intent intent = new Intent(CustomerHomeActivity.this, ListingDetailsActivity.class);
         Gson gson = new Gson();
         String listingJson = gson.toJson(listing);
         intent.putExtra("listing", listingJson);
@@ -207,6 +245,14 @@ public class ReceiverHomeActivity extends AppCompatActivity implements ListingAd
         int id = item.getItemId();
         if (id == R.id.action_profile) {
             startActivity(new Intent(this, ProfileActivity.class));
+            return true;
+        }
+        if (id == R.id.action_orders) {
+            startActivity(new Intent(this, MyOrdersActivity.class));
+            return true;
+        }
+        if (id == R.id.action_map) {
+            startActivity(new Intent(this, MapActivity.class));
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -246,5 +292,30 @@ public class ReceiverHomeActivity extends AppCompatActivity implements ListingAd
             textViewEmptyState.setVisibility(View.GONE);
             recyclerViewListings.setVisibility(View.VISIBLE);
         }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 401) {
+            initializeStoredLocationAndStartListener();
+        }
+    }
+
+    private void applyBrandedToolbarTitle() {
+        SpannableString brandedTitle = new SpannableString("HungerHunt");
+        brandedTitle.setSpan(
+                new ForegroundColorSpan(ContextCompat.getColor(this, R.color.white)),
+                0,
+                "Hunger".length(),
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+        brandedTitle.setSpan(
+                new ForegroundColorSpan(ContextCompat.getColor(this, R.color.orange_accent)),
+                "Hunger".length(),
+                "HungerHunt".length(),
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        );
+        toolbar.setTitle(brandedTitle);
     }
 }

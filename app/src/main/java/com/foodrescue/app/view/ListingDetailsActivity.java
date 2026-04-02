@@ -1,6 +1,5 @@
 package com.foodrescue.app.view;
 
-import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.location.Location;
 import android.net.Uri;
@@ -8,8 +7,10 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
 import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.NumberPicker;
 import android.widget.TextView;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -20,12 +21,15 @@ import androidx.core.content.ContextCompat;
 import com.foodrescue.app.R;
 import com.foodrescue.app.data.SharedPreferencesManager;
 import com.foodrescue.app.firebase.FirebaseDatabaseService;
+import com.foodrescue.app.firebase.FirebaseStorageService;
 import com.foodrescue.app.model.Listing;
 import com.foodrescue.app.model.User;
 import com.foodrescue.app.utils.LocationHelper;
 import com.foodrescue.app.utils.NotificationHelper; // Import NotificationHelper
 import com.google.android.material.chip.Chip;
+import com.google.android.gms.tasks.Tasks;
 import com.google.gson.Gson;
+import com.bumptech.glide.Glide;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -34,15 +38,18 @@ public class ListingDetailsActivity extends AppCompatActivity {
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 201;
 
     private TextView textViewDetailTitle, textViewDetailDonorEmail, textViewDetailQuantity,
-            textViewDetailPrice, textViewDetailDescription, textViewDetailPickupWindow, textViewClaimStatus;
+            textViewDetailPrice, textViewDetailDescription, textViewDetailPickupWindow, textViewClaimStatus, textViewDeleteStatus;
+    private ImageView imageViewListingDetail;
     private Button buttonClaimListing, buttonNavigateToBusiness, buttonEditListing, buttonDeleteListing, buttonUpdateOrderStatus;
     private Chip chipOrderStatus;
+    private LinearLayout layoutDeleteState;
     private SharedPreferencesManager sharedPreferencesManager;
     private Listing currentListing; // Store the current listing
     private String loggedInUserEmail;
     private User loggedInUser;
     private Toolbar toolbar; // Declare Toolbar
     private FirebaseDatabaseService firebaseDatabaseService;
+    private FirebaseStorageService firebaseStorageService;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,20 +67,24 @@ public class ListingDetailsActivity extends AppCompatActivity {
 
         sharedPreferencesManager = new SharedPreferencesManager(this);
         firebaseDatabaseService = new FirebaseDatabaseService(this);
+        firebaseStorageService = new FirebaseStorageService(this);
 
         textViewDetailTitle = findViewById(R.id.textViewDetailTitle);
+        imageViewListingDetail = findViewById(R.id.imageViewListingDetail);
         textViewDetailDonorEmail = findViewById(R.id.textViewDetailDonorEmail);
         textViewDetailQuantity = findViewById(R.id.textViewDetailQuantity);
         textViewDetailPrice = findViewById(R.id.textViewDetailPrice);
         textViewDetailDescription = findViewById(R.id.textViewDetailDescription);
         textViewDetailPickupWindow = findViewById(R.id.textViewDetailPickupWindow);
         textViewClaimStatus = findViewById(R.id.textViewClaimStatus); // Initialize from XML
+        textViewDeleteStatus = findViewById(R.id.textViewDeleteStatus);
         chipOrderStatus = findViewById(R.id.chipOrderStatus);
         buttonClaimListing = findViewById(R.id.buttonClaimListing);
         buttonNavigateToBusiness = findViewById(R.id.buttonNavigateToBusiness);
         buttonEditListing = findViewById(R.id.buttonEditListing);
         buttonDeleteListing = findViewById(R.id.buttonDeleteListing);
         buttonUpdateOrderStatus = findViewById(R.id.buttonUpdateOrderStatus);
+        layoutDeleteState = findViewById(R.id.layoutDeleteState);
 
         loggedInUserEmail = sharedPreferencesManager.getLoggedInUserEmail();
         if (loggedInUserEmail != null) {
@@ -94,6 +105,7 @@ public class ListingDetailsActivity extends AppCompatActivity {
                 textViewDetailPrice.setText("Price: " + (TextUtils.isEmpty(currentListing.getPrice()) ? "Free" : currentListing.getPrice()));
                 textViewDetailDescription.setText("Description: " + currentListing.getDescription());
                 textViewDetailPickupWindow.setText("Pickup Window: " + currentListing.getPickupWindow());
+                renderListingImage();
 
                 updateClaimStatusUI(); // Call method to update UI based on claim status
 
@@ -134,9 +146,7 @@ public class ListingDetailsActivity extends AppCompatActivity {
                 buttonDeleteListing.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        sharedPreferencesManager.deleteListing(currentListing.getId());
-                        Toast.makeText(ListingDetailsActivity.this, "Listing deleted!", Toast.LENGTH_SHORT).show();
-                        finish(); // Go back to previous activity (e.g., DonorHomeActivity)
+                        confirmDeleteListing();
                     }
                 });
 
@@ -375,6 +385,11 @@ public class ListingDetailsActivity extends AppCompatActivity {
             return;
         }
 
+        if (!hasValidDestinationCoordinates()) {
+            Toast.makeText(this, "Seller location is not available for this listing.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         if (!LocationHelper.hasLocationPermission(this)) {
             LocationHelper.requestLocationPermission(this, LOCATION_PERMISSION_REQUEST_CODE);
             return;
@@ -385,22 +400,38 @@ public class ListingDetailsActivity extends AppCompatActivity {
 
     private void openMapsNavigation(Location userLocation) {
         String destination = currentListing.getLatitude() + "," + currentListing.getLongitude();
-        String navUri;
-        if (userLocation != null) {
-            String origin = userLocation.getLatitude() + "," + userLocation.getLongitude();
-            navUri = "https://www.google.com/maps/dir/?api=1&origin=" + origin + "&destination=" + destination + "&travelmode=driving";
-        } else {
-            navUri = "google.navigation:q=" + destination + "&mode=d";
+        Intent turnByTurnIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=" + destination + "&mode=d"));
+        if (turnByTurnIntent.resolveActivity(getPackageManager()) != null) {
+            startActivity(turnByTurnIntent);
+            return;
         }
 
-        try {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(navUri));
-            intent.setPackage("com.google.android.apps.maps");
-            startActivity(intent);
-        } catch (ActivityNotFoundException e) {
-            String fallback = "https://www.google.com/maps/dir/?api=1&destination=" + destination + "&travelmode=driving";
-            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(fallback)));
+        String directionsUrl;
+        if (userLocation != null) {
+            String origin = userLocation.getLatitude() + "," + userLocation.getLongitude();
+            directionsUrl = "https://www.google.com/maps/dir/?api=1&origin=" + origin + "&destination=" + destination + "&travelmode=driving";
+        } else {
+            directionsUrl = "https://www.google.com/maps/dir/?api=1&destination=" + destination + "&travelmode=driving";
         }
+
+        Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(directionsUrl));
+        if (browserIntent.resolveActivity(getPackageManager()) != null) {
+            startActivity(browserIntent);
+        } else {
+            Toast.makeText(this, "No navigation app found.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private boolean hasValidDestinationCoordinates() {
+        double latitude = currentListing.getLatitude();
+        double longitude = currentListing.getLongitude();
+        return !Double.isNaN(latitude)
+                && !Double.isNaN(longitude)
+                && latitude >= -90
+                && latitude <= 90
+                && longitude >= -180
+                && longitude <= 180
+                && !(latitude == 0d && longitude == 0d);
     }
 
     @Override
@@ -413,5 +444,72 @@ public class ListingDetailsActivity extends AppCompatActivity {
                 openMapsNavigation(null);
             }
         }
+    }
+
+    private void renderListingImage() {
+        if (currentListing == null || TextUtils.isEmpty(currentListing.getImageUri())) {
+            Glide.with(this)
+                    .load(R.drawable.ic_launcher_foreground)
+                    .into(imageViewListingDetail);
+            return;
+        }
+        Glide.with(this)
+                .load(currentListing.getImageUri())
+                .placeholder(R.drawable.ic_launcher_foreground)
+                .error(R.drawable.ic_launcher_foreground)
+                .into(imageViewListingDetail);
+    }
+
+    private void confirmDeleteListing() {
+        new AlertDialog.Builder(this)
+                .setTitle("Delete Listing")
+                .setMessage("This will remove the listing and its uploaded image. This action cannot be undone.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Delete", (dialog, which) -> deleteListing())
+                .show();
+    }
+
+    private void deleteListing() {
+        if (currentListing == null) {
+            return;
+        }
+
+        setDeleteState(true, "Deleting listing...");
+        sharedPreferencesManager.deleteListing(currentListing.getId());
+
+        Tasks.whenAllComplete(
+                firebaseDatabaseService.deleteListing(currentListing.getId()),
+                firebaseStorageService.deleteListingImage(currentListing.getId())
+        ).addOnCompleteListener(task -> runOnUiThread(() -> {
+            setDeleteState(false, null);
+            boolean allSuccessful = true;
+            if (task.getResult() != null) {
+                for (com.google.android.gms.tasks.Task<?> completedTask : task.getResult()) {
+                    if (!completedTask.isSuccessful()) {
+                        allSuccessful = false;
+                        break;
+                    }
+                }
+            }
+
+            if (allSuccessful) {
+                Toast.makeText(this, "Listing deleted!", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Listing deleted on this device, but some cloud cleanup failed.", Toast.LENGTH_LONG).show();
+            }
+            finish();
+        }));
+    }
+
+    private void setDeleteState(boolean isDeleting, String statusText) {
+        layoutDeleteState.setVisibility(isDeleting ? View.VISIBLE : View.GONE);
+        if (statusText != null) {
+            textViewDeleteStatus.setText(statusText);
+        }
+        buttonDeleteListing.setEnabled(!isDeleting);
+        buttonEditListing.setEnabled(!isDeleting);
+        buttonClaimListing.setEnabled(!isDeleting);
+        buttonNavigateToBusiness.setEnabled(!isDeleting);
+        buttonUpdateOrderStatus.setEnabled(!isDeleting);
     }
 }

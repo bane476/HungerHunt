@@ -5,7 +5,11 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.text.SpannableString;
+import android.text.Spanned;
 import android.text.TextUtils;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.RelativeSizeSpan;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -13,29 +17,40 @@ import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull; // Import for @NonNull
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.splashscreen.SplashScreen;
 import androidx.core.app.ActivityCompat; // Import for ActivityCompat
 import androidx.lifecycle.ViewModelProvider;
 import com.foodrescue.app.R;
+import com.foodrescue.app.data.SharedPreferencesManager;
 import com.foodrescue.app.model.User;
 import com.foodrescue.app.repository.AuthRepository;
 import com.foodrescue.app.utils.NotificationHelper; // Import NotificationHelper
 import com.foodrescue.app.utils.Validator;
 import com.foodrescue.app.viewmodel.AuthViewModel;
+import androidx.core.content.ContextCompat;
 
 public class LoginActivity extends AppCompatActivity {
 
     private static final int PERMISSION_REQUEST_CODE = 100;
     private EditText editTextEmail, editTextPassword;
     private Button buttonLogin;
-    private TextView textViewRegister;
+    private TextView textViewRegister, textViewLoginTitle;
     private AuthViewModel authViewModel;
+    private SharedPreferencesManager sharedPreferencesManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        SplashScreen.installSplashScreen(this);
+        setTheme(R.style.Theme_App);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
 
         authViewModel = new ViewModelProvider(this).get(AuthViewModel.class);
+        sharedPreferencesManager = new SharedPreferencesManager(this);
+
+        if (routeToHomeIfSessionExists()) {
+            return;
+        }
 
         // Create notification channel
         NotificationHelper.createNotificationChannel(this);
@@ -51,6 +66,9 @@ public class LoginActivity extends AppCompatActivity {
         editTextPassword = findViewById(R.id.editTextPassword);
         buttonLogin = findViewById(R.id.buttonLogin);
         textViewRegister = findViewById(R.id.textViewRegister);
+        textViewLoginTitle = findViewById(R.id.textViewLoginTitle);
+
+        styleLoginTitle();
 
         buttonLogin.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -104,9 +122,9 @@ public class LoginActivity extends AppCompatActivity {
                     buttonLogin.setEnabled(true);
                     Toast.makeText(LoginActivity.this, message, Toast.LENGTH_SHORT).show();
                     if (isBusinessRole(user.getRole())) {
-                        startActivity(new Intent(LoginActivity.this, DonorHomeActivity.class));
+                        startActivity(new Intent(LoginActivity.this, BusinessHomeActivity.class));
                     } else {
-                        startActivity(new Intent(LoginActivity.this, ReceiverHomeActivity.class));
+                        startActivity(new Intent(LoginActivity.this, CustomerHomeActivity.class));
                     }
                     finish();
                 });
@@ -126,6 +144,44 @@ public class LoginActivity extends AppCompatActivity {
         return "Business".equalsIgnoreCase(role)
                 || "Provider".equalsIgnoreCase(role)
                 || "Donor".equalsIgnoreCase(role);
+    }
+
+    private void styleLoginTitle() {
+        String fullTitle = "Welcome to HungerHunt";
+        SpannableString styledTitle = new SpannableString(fullTitle);
+        int brandStart = fullTitle.indexOf("HungerHunt");
+        if (brandStart < 0) {
+            textViewLoginTitle.setText(fullTitle);
+            return;
+        }
+
+        int splitIndex = brandStart + "Hunger".length();
+        int end = brandStart + "HungerHunt".length();
+        styledTitle.setSpan(new RelativeSizeSpan(1.08f), brandStart, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        styledTitle.setSpan(new ForegroundColorSpan(ContextCompat.getColor(this, R.color.green_primary)), brandStart, splitIndex, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        styledTitle.setSpan(new ForegroundColorSpan(ContextCompat.getColor(this, R.color.orange_accent)), splitIndex, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        textViewLoginTitle.setText(styledTitle);
+    }
+
+    private boolean routeToHomeIfSessionExists() {
+        String loggedInEmail = sharedPreferencesManager.getLoggedInUserEmail();
+        if (TextUtils.isEmpty(loggedInEmail)) {
+            return false;
+        }
+
+        User user = sharedPreferencesManager.getUser(loggedInEmail);
+        if (user == null) {
+            sharedPreferencesManager.saveLoggedInUserEmail(null);
+            return false;
+        }
+
+        Intent intent = isBusinessRole(user.getRole())
+                ? new Intent(this, BusinessHomeActivity.class)
+                : new Intent(this, CustomerHomeActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+        startActivity(intent);
+        finish();
+        return true;
     }
 
 }

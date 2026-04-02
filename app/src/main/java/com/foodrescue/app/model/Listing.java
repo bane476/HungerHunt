@@ -15,6 +15,7 @@ public class Listing {
     private String claimedByEmail;
     private String paymentMethod;
     private String orderStatus;
+    private String imageUri;
 
     public Listing() {
         // Required for Firebase deserialization
@@ -51,6 +52,7 @@ public class Listing {
         this.claimedByEmail = claimedByEmail;
         this.paymentMethod = paymentMethod;
         this.orderStatus = null;
+        this.imageUri = null;
     }
 
     public String getId() {
@@ -163,5 +165,13 @@ public class Listing {
 
     public void setOrderStatus(String orderStatus) {
         this.orderStatus = orderStatus;
+    }
+
+    public String getImageUri() {
+        return imageUri;
+    }
+
+    public void setImageUri(String imageUri) {
+        this.imageUri = imageUri;
     }
 }

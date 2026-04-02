@@ -1,5 +1,6 @@
 /build
+.gradle-local/
 prompt.txt
 error.txt
-.gradle-local
 .idea
+project.txt

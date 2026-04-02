@@ -1,6 +1,7 @@
 package com.foodrescue.app.view;
 
 import android.content.Intent;
+import android.location.Location;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
@@ -17,25 +18,27 @@ import com.foodrescue.app.R;
 import com.foodrescue.app.data.SharedPreferencesManager;
 import com.foodrescue.app.model.Listing;
 import com.foodrescue.app.model.User;
+import com.foodrescue.app.utils.LocationHelper;
 import com.foodrescue.app.viewmodel.AuthViewModel;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.android.material.textfield.TextInputEditText; // Import TextInputEditText
 
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ProfileActivity extends AppCompatActivity {
+    private static final int LOCATION_PERMISSION_REQUEST_CODE = 501;
 
     private TextView textViewEmail;
     private TextInputEditText editTextProfileName, editTextProfilePhone, editTextProfileAddress, editTextProfileBusinessName; // Changed to TextInputEditText
-    private TextView textViewReceiverOrderHistory, textViewDonorOrderHistory;
     private TextView textViewStatDonorListings, textViewStatDonorUnits, textViewStatDonorCompleted,
             textViewStatReceiverClaims, textViewStatReceiverUnits, textViewStatReceiverCompleted;
-    private TextView textViewStatsHeader, textViewReceiverHistoryHeader, textViewDonorHistoryHeader;
+    private TextView textViewStatsHeader, textViewSavedLocation;
     private TextInputLayout layoutProfileName, layoutBusinessName;
     private LinearLayout layoutDonorStatsRow1, layoutDonorStatsRow2, layoutReceiverStatsRow, layoutReceiverStatsRow2;
-    private Button buttonSaveProfile, buttonLogout;
+    private Button buttonSaveProfile, buttonLogout, buttonUpdateLocation;
     private Toolbar toolbar; // Declare Toolbar
 
     private SharedPreferencesManager sharedPreferencesManager;
@@ -64,8 +67,6 @@ public class ProfileActivity extends AppCompatActivity {
         editTextProfilePhone = findViewById(R.id.editTextProfilePhone);
         editTextProfileAddress = findViewById(R.id.editTextProfileAddress);
         editTextProfileBusinessName = findViewById(R.id.editTextProfileBusinessName);
-        textViewReceiverOrderHistory = findViewById(R.id.textViewReceiverOrderHistory);
-        textViewDonorOrderHistory = findViewById(R.id.textViewDonorOrderHistory);
         textViewStatDonorListings = findViewById(R.id.textViewStatDonorListings);
         textViewStatDonorUnits = findViewById(R.id.textViewStatDonorUnits);
         textViewStatDonorCompleted = findViewById(R.id.textViewStatDonorCompleted);
@@ -73,8 +74,7 @@ public class ProfileActivity extends AppCompatActivity {
         textViewStatReceiverUnits = findViewById(R.id.textViewStatReceiverUnits);
         textViewStatReceiverCompleted = findViewById(R.id.textViewStatReceiverCompleted);
         textViewStatsHeader = findViewById(R.id.textViewStatsHeader);
-        textViewReceiverHistoryHeader = findViewById(R.id.textViewReceiverHistoryHeader);
-        textViewDonorHistoryHeader = findViewById(R.id.textViewDonorHistoryHeader);
+        textViewSavedLocation = findViewById(R.id.textViewSavedLocation);
         layoutProfileName = findViewById(R.id.layoutProfileName);
         layoutBusinessName = findViewById(R.id.layoutBusinessName);
         layoutDonorStatsRow1 = findViewById(R.id.layoutDonorStatsRow1);
@@ -83,6 +83,7 @@ public class ProfileActivity extends AppCompatActivity {
         layoutReceiverStatsRow2 = findViewById(R.id.layoutReceiverStatsRow2);
         buttonSaveProfile = findViewById(R.id.buttonSaveProfile);
         buttonLogout = findViewById(R.id.buttonLogout);
+        buttonUpdateLocation = findViewById(R.id.buttonUpdateLocation);
 
         loadUserProfile();
 
@@ -99,6 +100,8 @@ public class ProfileActivity extends AppCompatActivity {
                 logoutUser();
             }
         });
+
+        buttonUpdateLocation.setOnClickListener(v -> refreshSavedLocation());
     }
 
     @Override
@@ -119,7 +122,7 @@ public class ProfileActivity extends AppCompatActivity {
                 editTextProfileBusinessName.setText(currentUser.getBusinessName());
                 String normalizedRole = normalizeRole(currentUser.getRole());
                 applyRoleSpecificVisibility(normalizedRole);
-                renderOrderHistory();
+                renderSavedLocation();
                 renderDashboardStats();
             } else {
                 Toast.makeText(this, "User data not found.", Toast.LENGTH_SHORT).show();
@@ -154,12 +157,27 @@ public class ProfileActivity extends AppCompatActivity {
             return;
         }
 
-        // Create a new User object with updated details (email and password remain same)
         User updatedUser = new User(newName, currentUser.getEmail(), currentUser.getPassword(), newPhone, newAddress, newBusinessName, newRole);
-        sharedPreferencesManager.saveUser(updatedUser); // saveUser will overwrite if email exists
-        currentUser = updatedUser; // Update current user in activity
-        applyRoleSpecificVisibility(newRole);
-        Toast.makeText(this, "Profile updated successfully!", Toast.LENGTH_SHORT).show();
+        buttonSaveProfile.setEnabled(false);
+        authViewModel.saveUserProfile(updatedUser, new com.foodrescue.app.repository.AuthRepository.AuthResultCallback() {
+            @Override
+            public void onSuccess(User user, String message) {
+                runOnUiThread(() -> {
+                    buttonSaveProfile.setEnabled(true);
+                    currentUser = user;
+                    applyRoleSpecificVisibility(newRole);
+                    Toast.makeText(ProfileActivity.this, message, Toast.LENGTH_SHORT).show();
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    buttonSaveProfile.setEnabled(true);
+                    Toast.makeText(ProfileActivity.this, message, Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
     }
 
     private void logoutUser() {
@@ -168,24 +186,6 @@ public class ProfileActivity extends AppCompatActivity {
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(intent);
         finish();
-    }
-
-    private void renderOrderHistory() {
-        List<String> receiverHistory = sharedPreferencesManager.getOrderHistory(currentUser.getEmail(), "receiver");
-        List<String> donorHistory = sharedPreferencesManager.getOrderHistory(currentUser.getEmail(), "donor");
-        textViewReceiverOrderHistory.setText(formatHistory(receiverHistory));
-        textViewDonorOrderHistory.setText(formatHistory(donorHistory));
-    }
-
-    private String formatHistory(List<String> history) {
-        if (history == null || history.isEmpty()) {
-            return "No previous orders.";
-        }
-        StringBuilder builder = new StringBuilder();
-        for (String item : history) {
-            builder.append("- ").append(item).append("\n\n");
-        }
-        return builder.toString().trim();
     }
 
     private void renderDashboardStats() {
@@ -266,10 +266,54 @@ public class ProfileActivity extends AppCompatActivity {
         layoutDonorStatsRow2.setVisibility(isProvider ? View.VISIBLE : View.GONE);
         layoutReceiverStatsRow.setVisibility(isProvider ? View.GONE : View.VISIBLE);
         layoutReceiverStatsRow2.setVisibility(isProvider ? View.GONE : View.VISIBLE);
+    }
 
-        textViewDonorHistoryHeader.setVisibility(isProvider ? View.VISIBLE : View.GONE);
-        textViewDonorOrderHistory.setVisibility(isProvider ? View.VISIBLE : View.GONE);
-        textViewReceiverHistoryHeader.setVisibility(isProvider ? View.GONE : View.VISIBLE);
-        textViewReceiverOrderHistory.setVisibility(isProvider ? View.GONE : View.VISIBLE);
+    private void refreshSavedLocation() {
+        if (currentUser == null) {
+            return;
+        }
+        if (!LocationHelper.hasLocationPermission(this)) {
+            LocationHelper.requestLocationPermission(this, LOCATION_PERMISSION_REQUEST_CODE);
+            return;
+        }
+        buttonUpdateLocation.setEnabled(false);
+        LocationHelper.fetchLastLocation(this, this::handleLocationUpdate);
+    }
+
+    private void handleLocationUpdate(Location location) {
+        runOnUiThread(() -> {
+            buttonUpdateLocation.setEnabled(true);
+            if (currentUser == null) {
+                return;
+            }
+            if (location == null) {
+                Toast.makeText(this, "Could not fetch current location.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            sharedPreferencesManager.saveUserLocation(currentUser.getEmail(), location.getLatitude(), location.getLongitude());
+            renderSavedLocation();
+            Toast.makeText(this, "Location updated.", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void renderSavedLocation() {
+        if (currentUser == null) {
+            textViewSavedLocation.setText("Location not available.");
+            return;
+        }
+        double[] savedLocation = sharedPreferencesManager.getUserLocation(currentUser.getEmail());
+        if (savedLocation == null || savedLocation.length < 2) {
+            textViewSavedLocation.setText("Location not saved yet. Tap Update Saved Location.");
+            return;
+        }
+        textViewSavedLocation.setText(String.format(Locale.getDefault(), "Saved location: %.5f, %.5f", savedLocation[0], savedLocation[1]));
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE && LocationHelper.hasLocationPermission(this)) {
+            refreshSavedLocation();
+        }
     }
 }

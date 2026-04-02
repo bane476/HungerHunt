@@ -15,6 +15,12 @@
         <item name="materialCardViewStyle">@style/Widget.App.CardView</item>
     </style>
 
+    <style name="Theme.App.Splash" parent="Theme.App">
+        <item name="android:windowBackground">@drawable/splash_screen</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowContentTransitions">false</item>
+    </style>
+
     <style name="Widget.App.TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox">
         <item name="boxStrokeColor">@color/green_primary</item>
         <item name="boxBackgroundColor">@color/surface_card</item>
