@@ -32,25 +32,25 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public class CustomerHomeActivity extends AppCompatActivity implements ListingAdapter.OnListingClickListener {
 
     private RecyclerView recyclerViewListings;
     private ListingAdapter listingAdapter;
     private List<Listing> allListings;
+    private List<Listing> sourceListings;
     private SharedPreferencesManager sharedPreferencesManager;
     private TextView textViewEmptyState;
     private Toolbar toolbar; // Declare Toolbar
     private FirebaseDatabaseService firebaseDatabaseService;
     private ListenerRegistration listingsListener;
     private Location lastKnownLocation;
+    private static final int LOCATION_PERMISSION_REQUEST_CODE = 401;
 
     private static final double SIMULATED_USER_LATITUDE = 28.6139;
     private static final double SIMULATED_USER_LONGITUDE = 77.2090;
-    private static final double NOTIFICATION_RADIUS_KM = 5.0;
+    private static final double GEOFENCE_RADIUS_KM = 5.0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,6 +70,7 @@ public class CustomerHomeActivity extends AppCompatActivity implements ListingAd
         recyclerViewListings.setLayoutManager(new LinearLayoutManager(this));
         textViewEmptyState = findViewById(R.id.textViewEmptyState);
         allListings = new ArrayList<>();
+        sourceListings = new ArrayList<>();
         listingAdapter = new ListingAdapter(allListings, this);
         recyclerViewListings.setAdapter(listingAdapter);
     }
@@ -85,46 +86,23 @@ public class CustomerHomeActivity extends AppCompatActivity implements ListingAd
         firebaseDatabaseService.getAllListings()
                 .addOnSuccessListener(querySnapshot -> {
                     List<Listing> mergedListings = new ArrayList<>();
-                    Set<String> seenIds = new HashSet<>();
 
                     for (Listing listing : sharedPreferencesManager.getAllListings()) {
-                        if (listing != null && isListingValid(listing)) {
-                            mergedListings.add(listing);
-                            if (listing.getId() != null) {
-                                seenIds.add(listing.getId());
-                            }
-                        }
+                        addOrReplaceListing(mergedListings, listing, false);
                     }
 
                     for (DocumentSnapshot doc : querySnapshot.getDocuments()) {
                         Listing listing = doc.toObject(Listing.class);
-                        if (listing != null && isListingValid(listing)) {
-                            String id = listing.getId();
-                            if (id == null || !seenIds.contains(id)) {
-                                mergedListings.add(listing);
-                            }
-                            if (id != null) {
-                                seenIds.add(id);
-                            }
-                            if (listing.getId() != null) {
-                                sharedPreferencesManager.markListingNotified(listing.getId());
-                            }
-                        }
+                        addOrReplaceListing(mergedListings, listing, true);
                     }
-                    allListings.clear();
-                    allListings.addAll(mergedListings);
-                    listingAdapter.updateListings(allListings);
-                    updateEmptyState();
+                    applyListingVisibilityFilter(mergedListings);
                 })
                 .addOnFailureListener(e -> {
-                    allListings.clear();
+                    List<Listing> mergedListings = new ArrayList<>();
                     for (Listing listing : sharedPreferencesManager.getAllListings()) {
-                        if (isListingValid(listing)) {
-                            allListings.add(listing);
-                        }
+                        addOrReplaceListing(mergedListings, listing, false);
                     }
-                    listingAdapter.updateListings(allListings);
-                    updateEmptyState();
+                    applyListingVisibilityFilter(mergedListings);
                     Toast.makeText(this, "Using local listings (offline)", Toast.LENGTH_SHORT).show();
                 });
     }
@@ -139,13 +117,15 @@ public class CustomerHomeActivity extends AppCompatActivity implements ListingAd
                 location.setLongitude(savedLocation[1]);
                 lastKnownLocation = location;
                 startListingsListenerIfNeeded();
+                applyListingVisibilityFilter(sourceListings);
                 return;
             }
         }
 
         if (!LocationHelper.hasLocationPermission(this)) {
-            LocationHelper.requestLocationPermission(this, 401);
+            LocationHelper.requestLocationPermission(this, LOCATION_PERMISSION_REQUEST_CODE);
             fallbackToSimulatedLocation();
+            applyListingVisibilityFilter(sourceListings);
             return;
         }
 
@@ -159,6 +139,7 @@ public class CustomerHomeActivity extends AppCompatActivity implements ListingAd
                 fallbackToSimulatedLocation();
             }
             startListingsListenerIfNeeded();
+            applyListingVisibilityFilter(sourceListings);
         }));
     }
 
@@ -194,7 +175,11 @@ public class CustomerHomeActivity extends AppCompatActivity implements ListingAd
                 if (lastKnownLocation == null) {
                     continue;
                 }
-                if (isWithinRadius(lastKnownLocation, listing, NOTIFICATION_RADIUS_KM)) {
+                if (isWithinRadius(lastKnownLocation, listing, GEOFENCE_RADIUS_KM)) {
+                    applyListingVisibilityFilterWithSingleUpdate(listing);
+                    if (sharedPreferencesManager.isListingNotified(listing.getId())) {
+                        return;
+                    }
                     String title = "New Food Nearby";
                     String message = listing.getTitle() + " is available within 5 km.";
                     NotificationHelper.sendNotification(this, title, message, listing.getId().hashCode());
@@ -213,7 +198,7 @@ public class CustomerHomeActivity extends AppCompatActivity implements ListingAd
                 listing.getLongitude(),
                 results
         );
-        return results[0] <= radiusKm * 1000.0;
+        return hasValidCoordinates(listing) && results[0] <= radiusKm * 1000.0;
     }
 
     @Override
@@ -297,9 +282,83 @@ public class CustomerHomeActivity extends AppCompatActivity implements ListingAd
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == 401) {
+        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
             initializeStoredLocationAndStartListener();
         }
+    }
+
+    private void addOrReplaceListing(List<Listing> target, Listing listing, boolean preferIncoming) {
+        if (listing == null || !isListingValid(listing)) {
+            return;
+        }
+
+        String id = listing.getId();
+        if (id == null) {
+            target.add(listing);
+            return;
+        }
+
+        for (int i = 0; i < target.size(); i++) {
+            Listing existing = target.get(i);
+            if (existing != null && id.equals(existing.getId())) {
+                if (preferIncoming) {
+                    target.set(i, listing);
+                }
+                return;
+            }
+        }
+        target.add(listing);
+    }
+
+    private void applyListingVisibilityFilter(List<Listing> listingsSource) {
+        sourceListings.clear();
+        sourceListings.addAll(listingsSource);
+
+        List<Listing> visibleListings = new ArrayList<>();
+        for (Listing listing : sourceListings) {
+            if (shouldDisplayListing(listing)) {
+                visibleListings.add(listing);
+            }
+        }
+        allListings.clear();
+        allListings.addAll(visibleListings);
+        listingAdapter.updateListings(allListings);
+        updateEmptyState();
+    }
+
+    private void applyListingVisibilityFilterWithSingleUpdate(Listing incomingListing) {
+        if (!shouldDisplayListing(incomingListing)) {
+            return;
+        }
+
+        List<Listing> updatedSourceListings = new ArrayList<>(sourceListings);
+        addOrReplaceListing(updatedSourceListings, incomingListing, true);
+        applyListingVisibilityFilter(updatedSourceListings);
+    }
+
+    private boolean shouldDisplayListing(Listing listing) {
+        if (!isListingValid(listing)) {
+            return false;
+        }
+        if (lastKnownLocation == null) {
+            return true;
+        }
+        return isWithinRadius(lastKnownLocation, listing, GEOFENCE_RADIUS_KM);
+    }
+
+    private boolean hasValidCoordinates(Listing listing) {
+        if (listing == null) {
+            return false;
+        }
+        double latitude = listing.getLatitude();
+        double longitude = listing.getLongitude();
+        return !Double.isNaN(latitude)
+                && !Double.isNaN(longitude)
+                && latitude >= -90
+                && latitude <= 90
+                && longitude >= -180
+                && longitude <= 180
+                && !(latitude == 0d && longitude == 0d);
     }
 
     private void applyBrandedToolbarTitle() {

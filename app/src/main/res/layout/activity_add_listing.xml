@@ -84,6 +84,7 @@
                         android:hint="@string/add_listing_title_hint">
 
                         <com.google.android.material.textfield.TextInputEditText
+                            style="@style/Widget.App.TextInputEditText"
                             android:id="@+id/editTextTitle"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -98,6 +99,7 @@
                         android:hint="@string/add_listing_quantity_hint">
 
                         <com.google.android.material.textfield.TextInputEditText
+                            style="@style/Widget.App.TextInputEditText"
                             android:id="@+id/editTextQuantity"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -112,6 +114,7 @@
                         android:hint="@string/add_listing_price_hint">
 
                         <com.google.android.material.textfield.TextInputEditText
+                            style="@style/Widget.App.TextInputEditText"
                             android:id="@+id/editTextPrice"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -126,6 +129,7 @@
                         android:hint="@string/add_listing_description_hint">
 
                         <com.google.android.material.textfield.TextInputEditText
+                            style="@style/Widget.App.TextInputEditText"
                             android:id="@+id/editTextDescription"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -142,6 +146,7 @@
                         android:hint="@string/add_listing_pickup_window_hint">
 
                         <com.google.android.material.textfield.TextInputEditText
+                            style="@style/Widget.App.TextInputEditText"
                             android:id="@+id/editTextPickupWindow"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"

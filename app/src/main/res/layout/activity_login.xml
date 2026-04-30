@@ -51,6 +51,7 @@
                     android:hint="@string/login_email_hint">
 
                     <com.google.android.material.textfield.TextInputEditText
+                        style="@style/Widget.App.TextInputEditText"
                         android:id="@+id/editTextEmail"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -65,6 +66,7 @@
                     app:endIconMode="password_toggle">
 
                     <com.google.android.material.textfield.TextInputEditText
+                        style="@style/Widget.App.TextInputEditText"
                         android:id="@+id/editTextPassword"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"

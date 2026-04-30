@@ -1,8 +1,6 @@
 package com.foodrescue.app.view;
 
 import android.content.Intent;
-import android.location.Location;
-import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
@@ -24,7 +22,6 @@ import com.foodrescue.app.firebase.FirebaseDatabaseService;
 import com.foodrescue.app.firebase.FirebaseStorageService;
 import com.foodrescue.app.model.Listing;
 import com.foodrescue.app.model.User;
-import com.foodrescue.app.utils.LocationHelper;
 import com.foodrescue.app.utils.NotificationHelper; // Import NotificationHelper
 import com.google.android.material.chip.Chip;
 import com.google.android.gms.tasks.Tasks;
@@ -32,15 +29,14 @@ import com.google.gson.Gson;
 import com.bumptech.glide.Glide;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 public class ListingDetailsActivity extends AppCompatActivity {
-    private static final int LOCATION_PERMISSION_REQUEST_CODE = 201;
-
     private TextView textViewDetailTitle, textViewDetailDonorEmail, textViewDetailQuantity,
             textViewDetailPrice, textViewDetailDescription, textViewDetailPickupWindow, textViewClaimStatus, textViewDeleteStatus;
     private ImageView imageViewListingDetail;
-    private Button buttonClaimListing, buttonNavigateToBusiness, buttonEditListing, buttonDeleteListing, buttonUpdateOrderStatus;
+    private Button buttonClaimListing, buttonEditListing, buttonDeleteListing, buttonUpdateOrderStatus;
     private Chip chipOrderStatus;
     private LinearLayout layoutDeleteState;
     private SharedPreferencesManager sharedPreferencesManager;
@@ -80,7 +76,6 @@ public class ListingDetailsActivity extends AppCompatActivity {
         textViewDeleteStatus = findViewById(R.id.textViewDeleteStatus);
         chipOrderStatus = findViewById(R.id.chipOrderStatus);
         buttonClaimListing = findViewById(R.id.buttonClaimListing);
-        buttonNavigateToBusiness = findViewById(R.id.buttonNavigateToBusiness);
         buttonEditListing = findViewById(R.id.buttonEditListing);
         buttonDeleteListing = findViewById(R.id.buttonDeleteListing);
         buttonUpdateOrderStatus = findViewById(R.id.buttonUpdateOrderStatus);
@@ -114,12 +109,10 @@ public class ListingDetailsActivity extends AppCompatActivity {
                     buttonEditListing.setVisibility(View.VISIBLE);
                     buttonDeleteListing.setVisibility(View.VISIBLE);
                     buttonClaimListing.setVisibility(View.GONE); // Donor cannot claim their own listing
-                    buttonNavigateToBusiness.setVisibility(View.GONE);
                 } else if (loggedInUser != null && isCustomerRole(loggedInUser.getRole())) {
                     // Logged-in user is a receiver
                     buttonEditListing.setVisibility(View.GONE);
                     buttonDeleteListing.setVisibility(View.GONE);
-                    buttonNavigateToBusiness.setVisibility(View.VISIBLE);
                     if (currentListing.isClaimed() || getAvailableQuantity() <= 0) {
                         buttonClaimListing.setVisibility(View.GONE); // Already claimed
                     } else {
@@ -130,7 +123,6 @@ public class ListingDetailsActivity extends AppCompatActivity {
                     buttonEditListing.setVisibility(View.GONE);
                     buttonDeleteListing.setVisibility(View.GONE);
                     buttonClaimListing.setVisibility(View.GONE);
-                    buttonNavigateToBusiness.setVisibility(View.GONE);
                 }
 
                 buttonEditListing.setOnClickListener(new View.OnClickListener() {
@@ -168,8 +160,6 @@ public class ListingDetailsActivity extends AppCompatActivity {
                 }
             }
         });
-
-        buttonNavigateToBusiness.setOnClickListener(v -> navigateToBusiness());
     }
 
     @Override
@@ -350,7 +340,7 @@ public class ListingDetailsActivity extends AppCompatActivity {
         updateOrderStatusButtonVisibility();
 
         String stamp = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(new Date());
-        String historyMessage = currentListing.getTitle() + " status changed to " + nextStatus + " | Time: " + stamp;
+        String historyMessage = buildOrderStatusHistoryMessage(nextStatus, stamp);
         if (!TextUtils.isEmpty(currentListing.getClaimedByEmail())) {
             sharedPreferencesManager.addOrderHistoryEntry(currentListing.getClaimedByEmail(), "receiver", historyMessage);
         }
@@ -375,75 +365,47 @@ public class ListingDetailsActivity extends AppCompatActivity {
         chipOrderStatus.setTextColor(ContextCompat.getColor(this, R.color.white));
     }
 
-    private boolean isCustomerRole(String role) {
-        return "Customer".equalsIgnoreCase(role) || "Receiver".equalsIgnoreCase(role);
+    private String buildOrderStatusHistoryMessage(String nextStatus, String stamp) {
+        StringBuilder builder = new StringBuilder();
+        builder.append(currentListing.getTitle())
+                .append(" status changed to ")
+                .append(nextStatus);
+
+        if ("COMPLETED".equalsIgnoreCase(nextStatus)) {
+            builder.append(" | Claimed Qty: ").append(resolveClaimedQuantityForHistory());
+            builder.append(" | Price: ").append(TextUtils.isEmpty(currentListing.getPrice()) ? "Free" : currentListing.getPrice());
+        }
+
+        builder.append(" | Time: ").append(stamp);
+        return builder.toString();
     }
 
-    private void navigateToBusiness() {
-        if (currentListing == null) {
-            Toast.makeText(this, "Listing not found.", Toast.LENGTH_SHORT).show();
-            return;
+    private int resolveClaimedQuantityForHistory() {
+        List<String> donorHistory = sharedPreferencesManager.getOrderHistory(currentListing.getDonorEmail(), "donor");
+        if (donorHistory == null || donorHistory.isEmpty()) {
+            return 0;
         }
 
-        if (!hasValidDestinationCoordinates()) {
-            Toast.makeText(this, "Seller location is not available for this listing.", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        String titlePrefix = currentListing.getTitle() + " | Claimed Qty:";
+        for (String entry : donorHistory) {
+            if (entry == null || !entry.startsWith(titlePrefix)) {
+                continue;
+            }
 
-        if (!LocationHelper.hasLocationPermission(this)) {
-            LocationHelper.requestLocationPermission(this, LOCATION_PERMISSION_REQUEST_CODE);
-            return;
-        }
-
-        LocationHelper.fetchLastLocation(this, this::openMapsNavigation);
-    }
-
-    private void openMapsNavigation(Location userLocation) {
-        String destination = currentListing.getLatitude() + "," + currentListing.getLongitude();
-        Intent turnByTurnIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=" + destination + "&mode=d"));
-        if (turnByTurnIntent.resolveActivity(getPackageManager()) != null) {
-            startActivity(turnByTurnIntent);
-            return;
-        }
-
-        String directionsUrl;
-        if (userLocation != null) {
-            String origin = userLocation.getLatitude() + "," + userLocation.getLongitude();
-            directionsUrl = "https://www.google.com/maps/dir/?api=1&origin=" + origin + "&destination=" + destination + "&travelmode=driving";
-        } else {
-            directionsUrl = "https://www.google.com/maps/dir/?api=1&destination=" + destination + "&travelmode=driving";
-        }
-
-        Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(directionsUrl));
-        if (browserIntent.resolveActivity(getPackageManager()) != null) {
-            startActivity(browserIntent);
-        } else {
-            Toast.makeText(this, "No navigation app found.", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private boolean hasValidDestinationCoordinates() {
-        double latitude = currentListing.getLatitude();
-        double longitude = currentListing.getLongitude();
-        return !Double.isNaN(latitude)
-                && !Double.isNaN(longitude)
-                && latitude >= -90
-                && latitude <= 90
-                && longitude >= -180
-                && longitude <= 180
-                && !(latitude == 0d && longitude == 0d);
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
-            if (LocationHelper.hasLocationPermission(this)) {
-                LocationHelper.fetchLastLocation(this, this::openMapsNavigation);
-            } else {
-                openMapsNavigation(null);
+            java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("Claimed Qty:\\s*(\\d+)").matcher(entry);
+            if (matcher.find()) {
+                try {
+                    return Integer.parseInt(matcher.group(1));
+                } catch (NumberFormatException ignored) {
+                    return 0;
+                }
             }
         }
+        return 0;
+    }
+
+    private boolean isCustomerRole(String role) {
+        return "Customer".equalsIgnoreCase(role) || "Receiver".equalsIgnoreCase(role);
     }
 
     private void renderListingImage() {
@@ -509,7 +471,6 @@ public class ListingDetailsActivity extends AppCompatActivity {
         buttonDeleteListing.setEnabled(!isDeleting);
         buttonEditListing.setEnabled(!isDeleting);
         buttonClaimListing.setEnabled(!isDeleting);
-        buttonNavigateToBusiness.setEnabled(!isDeleting);
         buttonUpdateOrderStatus.setEnabled(!isDeleting);
     }
 }

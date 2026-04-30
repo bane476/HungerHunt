@@ -17,6 +17,8 @@ import com.foodrescue.app.utils.Validator;
 import com.foodrescue.app.viewmodel.AuthViewModel;
 import com.google.android.material.textfield.TextInputLayout;
 
+import java.util.Locale;
+
 public class RegisterActivity extends AppCompatActivity {
 
     private EditText editTextName, editTextBusinessName, editTextEmail, editTextPassword, editTextPhone, editTextAddress;
@@ -59,7 +61,7 @@ public class RegisterActivity extends AppCompatActivity {
     private void registerUser() {
         String name = editTextName.getText().toString().trim();
         String businessName = editTextBusinessName.getText().toString().trim();
-        String email = editTextEmail.getText().toString().trim();
+        String email = editTextEmail.getText().toString().trim().toLowerCase(Locale.ROOT);
         String password = editTextPassword.getText().toString().trim();
         String phone = editTextPhone.getText().toString().trim();
         String address = editTextAddress.getText().toString().trim();

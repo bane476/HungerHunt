@@ -1,6 +1,7 @@
 package com.foodrescue.app.repository;
 
 import android.content.Context;
+import android.text.TextUtils;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -9,6 +10,8 @@ import com.foodrescue.app.data.SharedPreferencesManager;
 import com.foodrescue.app.firebase.FirebaseAuthService;
 import com.foodrescue.app.firebase.FirebaseDatabaseService;
 import com.foodrescue.app.model.User;
+
+import java.util.Locale;
 
 public class AuthRepository {
     private static final String TAG = "AuthRepository";
@@ -29,7 +32,10 @@ public class AuthRepository {
     }
 
     public void registerUser(@NonNull User user, @NonNull AuthResultCallback callback) {
-        User existingUser = sharedPreferencesManager.getUser(user.getEmail());
+        String normalizedEmail = normalizeEmail(user.getEmail());
+        user.setEmail(normalizedEmail);
+
+        User existingUser = sharedPreferencesManager.getUser(normalizedEmail);
         if (existingUser != null) {
             String existingRole = normalizeRole(existingUser.getRole());
             String requestedRole = normalizeRole(user.getRole());
@@ -43,20 +49,18 @@ public class AuthRepository {
 
         if (!firebaseAuthService.isFirebaseConfigured()) {
             sharedPreferencesManager.saveUser(user);
-            sharedPreferencesManager.saveLoggedInUserEmail(user.getEmail());
+            sharedPreferencesManager.saveLoggedInUserEmail(normalizedEmail);
             callback.onSuccess(user, "Registered locally. Add google-services.json to enable Firebase Auth.");
             return;
         }
 
-        firebaseAuthService.registerUser(user.getEmail(), user.getPassword(), new FirebaseAuthService.AuthCallback() {
+        firebaseAuthService.registerUser(normalizedEmail, user.getPassword(), new FirebaseAuthService.AuthCallback() {
             @Override
             public void onSuccess() {
                 sharedPreferencesManager.saveUser(user);
-                sharedPreferencesManager.saveLoggedInUserEmail(user.getEmail());
+                sharedPreferencesManager.saveLoggedInUserEmail(normalizedEmail);
                 callback.onSuccess(user, "Registration successful");
-
-                firebaseDatabaseService.saveUserProfile(user)
-                        .addOnFailureListener(e -> Log.e(TAG, "Cloud profile sync failed after registration", e));
+                syncUserProfileToCloud(user, 0);
             }
 
             @Override
@@ -67,10 +71,12 @@ public class AuthRepository {
     }
 
     public void loginUser(@NonNull String email, @NonNull String password, @NonNull AuthResultCallback callback) {
+        String normalizedEmail = normalizeEmail(email);
+
         if (!firebaseAuthService.isFirebaseConfigured()) {
-            User localUser = sharedPreferencesManager.getUser(email);
+            User localUser = sharedPreferencesManager.getUser(normalizedEmail);
             if (localUser != null && password.equals(localUser.getPassword())) {
-                sharedPreferencesManager.saveLoggedInUserEmail(email);
+                sharedPreferencesManager.saveLoggedInUserEmail(normalizedEmail);
                 callback.onSuccess(localUser, "Logged in locally. Add google-services.json to enable Firebase Auth.");
                 return;
             }
@@ -78,30 +84,36 @@ public class AuthRepository {
             return;
         }
 
-        firebaseAuthService.loginUser(email, password, new FirebaseAuthService.AuthCallback() {
+        firebaseAuthService.loginUser(normalizedEmail, password, new FirebaseAuthService.AuthCallback() {
             @Override
             public void onSuccess() {
-                User localUser = sharedPreferencesManager.getUser(email);
+                User localUser = sharedPreferencesManager.getUser(normalizedEmail);
                 if (localUser != null) {
-                    sharedPreferencesManager.saveLoggedInUserEmail(email);
+                    sharedPreferencesManager.saveLoggedInUserEmail(normalizedEmail);
                     callback.onSuccess(localUser, "Login successful");
                     return;
                 }
 
-                firebaseDatabaseService.getUserProfile(email)
+                firebaseDatabaseService.getUserProfile(normalizedEmail)
                         .addOnSuccessListener(restoredUser -> {
                             if (restoredUser == null) {
                                 firebaseAuthService.signOut();
-                                callback.onError("Profile not found for this email. Please register first.");
+                                callback.onError("This account exists in Firebase Auth, but its profile is missing in Firestore.");
                                 return;
                             }
+                            restoredUser.setEmail(normalizeEmail(firstNonBlank(restoredUser.getEmail(), normalizedEmail)));
+                            if (TextUtils.isEmpty(restoredUser.getPassword())) {
+                                restoredUser.setPassword(password);
+                            }
+                            restoredUser.setRole(normalizeRole(restoredUser.getRole()));
                             sharedPreferencesManager.saveUser(restoredUser);
-                            sharedPreferencesManager.saveLoggedInUserEmail(email);
+                            sharedPreferencesManager.saveLoggedInUserEmail(restoredUser.getEmail());
+                            syncUserProfileToCloud(restoredUser, 0);
                             callback.onSuccess(restoredUser, "Login successful");
                         })
                         .addOnFailureListener(e -> {
                             firebaseAuthService.signOut();
-                            callback.onError("Login succeeded, but profile restore failed. Please try again.");
+                            callback.onError("Login succeeded, but Firestore profile restore failed. Check Firebase rules/network and try again.");
                         });
             }
 
@@ -137,5 +149,32 @@ public class AuthRepository {
             return "Business";
         }
         return "Customer";
+    }
+
+    private String normalizeEmail(String email) {
+        return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (!TextUtils.isEmpty(value)) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private void syncUserProfileToCloud(@NonNull User user, int attempt) {
+        firebaseDatabaseService.saveUserProfile(user)
+                .addOnFailureListener(e -> {
+                    if (attempt < 1) {
+                        syncUserProfileToCloud(user, attempt + 1);
+                    } else {
+                        Log.e(TAG, "Cloud profile sync failed after registration", e);
+                    }
+                });
     }
 }

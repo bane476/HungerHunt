@@ -29,6 +29,8 @@ import com.foodrescue.app.utils.Validator;
 import com.foodrescue.app.viewmodel.AuthViewModel;
 import androidx.core.content.ContextCompat;
 
+import java.util.Locale;
+
 public class LoginActivity extends AppCompatActivity {
 
     private static final int PERMISSION_REQUEST_CODE = 100;
@@ -98,7 +100,7 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void loginUser() {
-        String email = editTextEmail.getText().toString().trim();
+        String email = editTextEmail.getText().toString().trim().toLowerCase(Locale.ROOT);
         String password = editTextPassword.getText().toString().trim();
 
         if (TextUtils.isEmpty(email) || TextUtils.isEmpty(password)) {
