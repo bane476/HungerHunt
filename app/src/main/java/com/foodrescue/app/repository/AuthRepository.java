@@ -88,17 +88,25 @@ public class AuthRepository {
             @Override
             public void onSuccess() {
                 User localUser = sharedPreferencesManager.getUser(normalizedEmail);
+                String authenticatedEmail = firebaseAuthService.getCurrentUserEmail();
+                String authenticatedUid = firebaseAuthService.getCurrentUserUid();
+
                 if (localUser != null) {
-                    sharedPreferencesManager.saveLoggedInUserEmail(normalizedEmail);
+                    localUser.setEmail(normalizeEmail(firstNonBlank(localUser.getEmail(), authenticatedEmail, normalizedEmail)));
+                    if (TextUtils.isEmpty(localUser.getPassword())) {
+                        localUser.setPassword(password);
+                    }
+                    localUser.setRole(normalizeRole(localUser.getRole()));
+                    sharedPreferencesManager.saveUser(localUser);
+                    sharedPreferencesManager.saveLoggedInUserEmail(localUser.getEmail());
                     callback.onSuccess(localUser, "Login successful");
                     return;
                 }
 
-                firebaseDatabaseService.getUserProfile(normalizedEmail)
+                firebaseDatabaseService.getUserProfile(normalizedEmail, authenticatedEmail, authenticatedUid)
                         .addOnSuccessListener(restoredUser -> {
                             if (restoredUser == null) {
-                                firebaseAuthService.signOut();
-                                callback.onError("This account exists in Firebase Auth, but its profile is missing in Firestore.");
+                                recoverMissingProfile(normalizedEmail, password, callback);
                                 return;
                             }
                             restoredUser.setEmail(normalizeEmail(firstNonBlank(restoredUser.getEmail(), normalizedEmail)));
@@ -108,7 +116,6 @@ public class AuthRepository {
                             restoredUser.setRole(normalizeRole(restoredUser.getRole()));
                             sharedPreferencesManager.saveUser(restoredUser);
                             sharedPreferencesManager.saveLoggedInUserEmail(restoredUser.getEmail());
-                            syncUserProfileToCloud(restoredUser, 0);
                             callback.onSuccess(restoredUser, "Login successful");
                         })
                         .addOnFailureListener(e -> {
@@ -148,6 +155,9 @@ public class AuthRepository {
                 || "Business".equalsIgnoreCase(role)) {
             return "Business";
         }
+        if ("Receiver".equalsIgnoreCase(role) || "Customer".equalsIgnoreCase(role)) {
+            return "Customer";
+        }
         return "Customer";
     }
 
@@ -165,6 +175,89 @@ public class AuthRepository {
             }
         }
         return null;
+    }
+
+    private void recoverMissingProfile(
+            @NonNull String normalizedEmail,
+            @NonNull String password,
+            @NonNull AuthResultCallback callback
+    ) {
+        User cachedUser = sharedPreferencesManager.getUser(normalizedEmail);
+        if (cachedUser != null) {
+            cachedUser.setEmail(normalizeEmail(firstNonBlank(cachedUser.getEmail(), normalizedEmail)));
+            if (TextUtils.isEmpty(cachedUser.getPassword())) {
+                cachedUser.setPassword(password);
+            }
+            cachedUser.setRole(normalizeRole(cachedUser.getRole()));
+            sharedPreferencesManager.saveUser(cachedUser);
+            sharedPreferencesManager.saveLoggedInUserEmail(normalizedEmail);
+            callback.onSuccess(cachedUser, "Login successful");
+            return;
+        }
+
+        firebaseDatabaseService.hasListingsForUser(normalizedEmail)
+                .addOnSuccessListener(hasListings -> {
+                    User recoveredUser = buildRecoveredUser(normalizedEmail, password, hasListings, null);
+                    sharedPreferencesManager.saveUser(recoveredUser);
+                    sharedPreferencesManager.saveLoggedInUserEmail(normalizedEmail);
+                    callback.onSuccess(recoveredUser, "Login successful");
+                })
+                .addOnFailureListener(e -> {
+                    User recoveredUser = buildRecoveredUser(normalizedEmail, password, false, null);
+                    sharedPreferencesManager.saveUser(recoveredUser);
+                    sharedPreferencesManager.saveLoggedInUserEmail(normalizedEmail);
+                    callback.onSuccess(recoveredUser, "Login successful");
+                });
+    }
+
+    @NonNull
+    private User buildRecoveredUser(
+            @NonNull String normalizedEmail,
+            @NonNull String password,
+            boolean hasListings,
+            User cachedUser
+    ) {
+        String fallbackName = buildFallbackName(normalizedEmail);
+        String inferredRole = hasListings ? "Business" : "Customer";
+        String role = cachedUser != null ? normalizeRole(cachedUser.getRole()) : inferredRole;
+        String businessName = firstNonBlank(
+                cachedUser != null ? cachedUser.getBusinessName() : null,
+                "Business".equals(role) ? fallbackName : "",
+                ""
+        );
+        String phone = cachedUser != null ? firstNonBlank(cachedUser.getPhone(), "") : "";
+        String address = cachedUser != null ? firstNonBlank(cachedUser.getAddress(), "") : "";
+        String name = cachedUser != null ? firstNonBlank(cachedUser.getName(), fallbackName) : fallbackName;
+        if (!"Business".equals(role)) {
+            businessName = "";
+        }
+        return new User(name, normalizedEmail, password, phone, address, businessName, role);
+    }
+
+    @NonNull
+    private String buildFallbackName(@NonNull String email) {
+        int atIndex = email.indexOf('@');
+        String base = atIndex > 0 ? email.substring(0, atIndex) : email;
+        base = base.replace('.', ' ').replace('_', ' ').trim();
+        if (base.isEmpty()) {
+            return "User";
+        }
+
+        String[] parts = base.split("\\s+");
+        StringBuilder builder = new StringBuilder();
+        for (String part : parts) {
+            if (part.isEmpty()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(' ');
+            }
+            builder.append(Character.toUpperCase(part.charAt(0)));
+            if (part.length() > 1) {
+                builder.append(part.substring(1));
+            }
+        }
+        return builder.length() == 0 ? "User" : builder.toString();
     }
 
     private void syncUserProfileToCloud(@NonNull User user, int attempt) {

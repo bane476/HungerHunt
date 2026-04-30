@@ -95,6 +95,14 @@ public class FirebaseAuthService {
         return user != null ? user.getEmail() : null;
     }
 
+    public String getCurrentUserUid() {
+        if (!firebaseConfigured || firebaseAuth == null) {
+            return null;
+        }
+        FirebaseUser user = firebaseAuth.getCurrentUser();
+        return user != null ? user.getUid() : null;
+    }
+
     private String getAuthErrorMessage(Exception exception, boolean isLogin) {
         if (exception == null) {
             return isLogin ? "Login failed. Please try again." : "Registration failed. Please try again.";

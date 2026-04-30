@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.text.SpannableString;
 import android.text.Spanned;
+import android.text.TextUtils;
 import android.text.style.ForegroundColorSpan;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -21,7 +22,10 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.foodrescue.app.R;
 import com.foodrescue.app.adapters.ListingAdapter;
 import com.foodrescue.app.data.SharedPreferencesManager;
+import com.foodrescue.app.firebase.FirebaseDatabaseService;
 import com.foodrescue.app.model.Listing;
+import com.foodrescue.app.utils.ListingStatusHelper;
+import com.foodrescue.app.utils.NotificationHelper;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.gson.Gson;
 
@@ -52,6 +56,7 @@ public class BusinessHomeActivity extends AppCompatActivity implements ListingAd
     private SharedPreferencesManager sharedPreferencesManager;
     private String loggedInBusinessEmail;
     private Toolbar toolbar; // Declare Toolbar
+    private FirebaseDatabaseService firebaseDatabaseService;
     private TextView textViewTodayRevenue;
     private TextView textViewWeekRevenue;
     private TextView textViewMonthRevenue;
@@ -68,7 +73,9 @@ public class BusinessHomeActivity extends AppCompatActivity implements ListingAd
         applyBrandedToolbarTitle();
 
         sharedPreferencesManager = new SharedPreferencesManager(this);
+        firebaseDatabaseService = new FirebaseDatabaseService(this);
         loggedInBusinessEmail = sharedPreferencesManager.getLoggedInUserEmail();
+        NotificationHelper.createNotificationChannel(this);
 
         fabAddListing = findViewById(R.id.fabAddListing);
         textViewTodayRevenue = findViewById(R.id.textViewTodayRevenue);
@@ -106,7 +113,11 @@ public class BusinessHomeActivity extends AppCompatActivity implements ListingAd
         List<Listing> allListings = sharedPreferencesManager.getAllListings();
         businessListings.clear();
         for (Listing listing : allListings) {
+            handleExpiredListing(listing);
             if (listing.getDonorEmail().equals(loggedInBusinessEmail)) {
+                if (ListingStatusHelper.isExpired(listing)) {
+                    continue;
+                }
                 businessListings.add(listing);
             }
         }
@@ -181,7 +192,6 @@ public class BusinessHomeActivity extends AppCompatActivity implements ListingAd
 
         List<String> chronologicalHistory = new ArrayList<>(donorHistory);
         Collections.reverse(chronologicalHistory);
-        List<SaleRecord> pendingSales = new ArrayList<>();
         LocalDate today = LocalDate.now();
         LocalDate weekStart = today.with(DayOfWeek.MONDAY);
         LocalDate monthStart = today.withDayOfMonth(1);
@@ -194,7 +204,7 @@ public class BusinessHomeActivity extends AppCompatActivity implements ListingAd
             if (entry.contains("| Claimed Qty:")) {
                 SaleRecord saleRecord = parseClaimEntry(entry);
                 if (saleRecord != null) {
-                    pendingSales.add(saleRecord);
+                    applyClaimToSummary(summary, saleRecord, today, weekStart, monthStart);
                 }
                 continue;
             }
@@ -207,36 +217,7 @@ public class BusinessHomeActivity extends AppCompatActivity implements ListingAd
             if (completedRecord == null || completedRecord.completedAt == null) {
                 continue;
             }
-
-            if (completedRecord.quantity <= 0 || completedRecord.unitPrice < 0d) {
-                SaleRecord matchedRecord = consumePendingSale(pendingSales, completedRecord.title);
-                if (matchedRecord != null) {
-                    if (completedRecord.quantity <= 0) {
-                        completedRecord.quantity = matchedRecord.quantity;
-                    }
-                    if (completedRecord.unitPrice < 0d) {
-                        completedRecord.unitPrice = matchedRecord.unitPrice;
-                    }
-                }
-            }
-
-            if (completedRecord.quantity <= 0 || completedRecord.unitPrice < 0d) {
-                continue;
-            }
-
-            double saleRevenue = completedRecord.quantity * completedRecord.unitPrice;
-            LocalDate completedDate = completedRecord.completedAt.toLocalDate();
-            if (completedDate.equals(today)) {
-                summary.todayRevenue += saleRevenue;
-            }
-            if (!completedDate.isBefore(weekStart)) {
-                summary.weekRevenue += saleRevenue;
-            }
-            if (!completedDate.isBefore(monthStart)) {
-                summary.monthRevenue += saleRevenue;
-            }
             summary.completedSales++;
-            summary.itemsSold += completedRecord.quantity;
         }
 
         return summary;
@@ -261,17 +242,6 @@ public class BusinessHomeActivity extends AppCompatActivity implements ListingAd
         record.unitPrice = parsePrice(entry);
         record.completedAt = parseTime(entry);
         return record;
-    }
-
-    private SaleRecord consumePendingSale(List<SaleRecord> pendingSales, String title) {
-        for (int i = 0; i < pendingSales.size(); i++) {
-            SaleRecord record = pendingSales.get(i);
-            if (record != null && title.equalsIgnoreCase(record.title)) {
-                pendingSales.remove(i);
-                return record;
-            }
-        }
-        return null;
     }
 
     private String extractTitle(String entry) {
@@ -329,6 +299,59 @@ public class BusinessHomeActivity extends AppCompatActivity implements ListingAd
 
     private String formatCurrency(double value) {
         return String.format(Locale.getDefault(), "Rs %.0f", value);
+    }
+
+    private void applyClaimToSummary(
+            RevenueSummary summary,
+            SaleRecord saleRecord,
+            LocalDate today,
+            LocalDate weekStart,
+            LocalDate monthStart
+    ) {
+        if (summary == null || saleRecord == null || saleRecord.completedAt == null) {
+            return;
+        }
+        double saleRevenue = saleRecord.quantity * saleRecord.unitPrice;
+        LocalDate claimedDate = saleRecord.completedAt.toLocalDate();
+        if (claimedDate.equals(today)) {
+            summary.todayRevenue += saleRevenue;
+        }
+        if (!claimedDate.isBefore(weekStart)) {
+            summary.weekRevenue += saleRevenue;
+        }
+        if (!claimedDate.isBefore(monthStart)) {
+            summary.monthRevenue += saleRevenue;
+        }
+        summary.itemsSold += saleRecord.quantity;
+    }
+
+    private void handleExpiredListing(Listing listing) {
+        if (listing == null || listing.getId() == null) {
+            return;
+        }
+        if (!loggedInBusinessEmail.equalsIgnoreCase(listing.getDonorEmail())) {
+            return;
+        }
+        if (!ListingStatusHelper.isExpired(listing)) {
+            return;
+        }
+        if (!"EXPIRED".equalsIgnoreCase(listing.getOrderStatus())) {
+            listing.setOrderStatus("EXPIRED");
+            sharedPreferencesManager.updateListing(listing);
+            firebaseDatabaseService.saveListing(listing);
+        }
+        if (sharedPreferencesManager.isExpiredListingNotified(listing.getId())) {
+            return;
+        }
+
+        String message;
+        if (TextUtils.isEmpty(listing.getClaimedByEmail())) {
+            message = listing.getTitle() + " expired before anyone picked it up.";
+        } else {
+            message = listing.getTitle() + " was not picked up before the pickup window ended.";
+        }
+        NotificationHelper.sendNotification(this, "Listing Expired", message, listing.getId().hashCode() + 9000);
+        sharedPreferencesManager.markExpiredListingNotified(listing.getId());
     }
 
     private static class SaleRecord {

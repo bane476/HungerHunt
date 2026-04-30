@@ -16,10 +16,15 @@ import com.google.firebase.FirebaseApp;
 import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QuerySnapshot;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public class FirebaseDatabaseService {
     private static final String TAG = "FirebaseDatabaseService";
@@ -73,23 +78,18 @@ public class FirebaseDatabaseService {
     }
 
     public Task<User> getUserProfile(String email) {
+        return getUserProfile(email, null, null);
+    }
+
+    public Task<User> getUserProfile(String email, String exactEmail, String uid) {
         if (!firebaseConfigured || db == null) {
             return Tasks.forException(new IllegalStateException(configurationErrorMessage));
         }
 
         TaskCompletionSource<User> taskCompletionSource = new TaskCompletionSource<>();
-        db.collection("users")
-                .document(email)
-                .get()
-                .addOnSuccessListener(documentSnapshot -> {
-                    User user = toUser(documentSnapshot);
-                    if (user != null) {
-                        taskCompletionSource.setResult(user);
-                        return;
-                    }
-                    findUserProfileByEmailFallback(email, taskCompletionSource);
-                })
-                .addOnFailureListener(taskCompletionSource::setException);
+        List<String> docIds = buildLookupCandidates(email, exactEmail, uid);
+        List<String> emailCandidates = buildLookupCandidates(email, exactEmail, null);
+        fetchUserByDocumentId(docIds, 0, emailCandidates, taskCompletionSource);
         return taskCompletionSource.getTask();
     }
 
@@ -105,6 +105,21 @@ public class FirebaseDatabaseService {
             return null;
         }
         return db.collection("listings").addSnapshotListener(listener);
+    }
+
+    public Task<Boolean> hasListingsForUser(String email) {
+        if (!firebaseConfigured || db == null) {
+            return Tasks.forException(new IllegalStateException(configurationErrorMessage));
+        }
+
+        TaskCompletionSource<Boolean> taskCompletionSource = new TaskCompletionSource<>();
+        db.collection("listings")
+                .whereEqualTo("donorEmail", normalizeEmail(email))
+                .limit(1)
+                .get()
+                .addOnSuccessListener(querySnapshot -> taskCompletionSource.setResult(!querySnapshot.isEmpty()))
+                .addOnFailureListener(taskCompletionSource::setException);
+        return taskCompletionSource.getTask();
     }
 
     private User toUser(DocumentSnapshot documentSnapshot) {
@@ -125,22 +140,62 @@ public class FirebaseDatabaseService {
         return buildUserFromLegacyDocument(documentSnapshot);
     }
 
-    private void findUserProfileByEmailFallback(String email, TaskCompletionSource<User> taskCompletionSource) {
+    private void fetchUserByDocumentId(
+            List<String> docIds,
+            int index,
+            List<String> emailCandidates,
+            TaskCompletionSource<User> taskCompletionSource
+    ) {
+        if (index >= docIds.size()) {
+            findUserProfileByEmailFallback(emailCandidates, 0, taskCompletionSource);
+            return;
+        }
+
+        String docId = docIds.get(index);
         db.collection("users")
+                .document(docId)
                 .get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    User user = toUser(documentSnapshot);
+                    if (user != null) {
+                        taskCompletionSource.setResult(user);
+                        return;
+                    }
+                    fetchUserByDocumentId(docIds, index + 1, emailCandidates, taskCompletionSource);
+                })
+                .addOnFailureListener(e -> {
+                    Log.w(TAG, "User profile document lookup failed for key " + docId, e);
+                    fetchUserByDocumentId(docIds, index + 1, emailCandidates, taskCompletionSource);
+                });
+    }
+
+    private void findUserProfileByEmailFallback(
+            List<String> emailCandidates,
+            int index,
+            TaskCompletionSource<User> taskCompletionSource
+    ) {
+        if (index >= emailCandidates.size()) {
+            taskCompletionSource.setResult(null);
+            return;
+        }
+
+        String email = emailCandidates.get(index);
+        Query query = db.collection("users").whereEqualTo("email", email).limit(1);
+        query.get()
                 .addOnSuccessListener(querySnapshot -> {
                     for (DocumentSnapshot snapshot : querySnapshot.getDocuments()) {
                         User user = toUser(snapshot);
-                        if (user != null
-                                && user.getEmail() != null
-                                && user.getEmail().equalsIgnoreCase(email)) {
+                        if (user != null) {
                             taskCompletionSource.setResult(user);
                             return;
                         }
                     }
-                    taskCompletionSource.setResult(null);
+                    findUserProfileByEmailFallback(emailCandidates, index + 1, taskCompletionSource);
                 })
-                .addOnFailureListener(taskCompletionSource::setException);
+                .addOnFailureListener(e -> {
+                    Log.w(TAG, "User profile email lookup failed for " + email, e);
+                    findUserProfileByEmailFallback(emailCandidates, index + 1, taskCompletionSource);
+                });
     }
 
     private User buildUserFromLegacyDocument(DocumentSnapshot documentSnapshot) {
@@ -229,5 +284,21 @@ public class FirebaseDatabaseService {
             return "Customer";
         }
         return "Customer";
+    }
+
+    private List<String> buildLookupCandidates(String first, String second, String third) {
+        Set<String> uniqueValues = new LinkedHashSet<>();
+        addLookupValue(uniqueValues, first);
+        addLookupValue(uniqueValues, normalizeEmail(first));
+        addLookupValue(uniqueValues, second);
+        addLookupValue(uniqueValues, normalizeEmail(second));
+        addLookupValue(uniqueValues, third);
+        return new ArrayList<>(uniqueValues);
+    }
+
+    private void addLookupValue(Set<String> target, String value) {
+        if (!TextUtils.isEmpty(value)) {
+            target.add(value.trim());
+        }
     }
 }

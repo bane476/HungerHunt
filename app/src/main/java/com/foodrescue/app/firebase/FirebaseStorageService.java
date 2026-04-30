@@ -117,12 +117,24 @@ public class FirebaseStorageService {
 
     private byte[] compressImage(Uri imageUri) throws IOException {
         ContentResolver contentResolver = appContext.getContentResolver();
-        Bitmap decodedBitmap;
+        BitmapFactory.Options boundsOptions = new BitmapFactory.Options();
+        boundsOptions.inJustDecodeBounds = true;
         try (InputStream inputStream = contentResolver.openInputStream(imageUri)) {
             if (inputStream == null) {
                 throw new IOException("Unable to open selected image.");
             }
-            decodedBitmap = BitmapFactory.decodeStream(inputStream);
+            BitmapFactory.decodeStream(inputStream, null, boundsOptions);
+        }
+
+        BitmapFactory.Options decodeOptions = new BitmapFactory.Options();
+        decodeOptions.inSampleSize = calculateInSampleSize(boundsOptions.outWidth, boundsOptions.outHeight);
+
+        Bitmap decodedBitmap;
+        try (InputStream inputStream = contentResolver.openInputStream(imageUri)) {
+            if (inputStream == null) {
+                throw new IOException("Unable to reopen selected image.");
+            }
+            decodedBitmap = BitmapFactory.decodeStream(inputStream, null, decodeOptions);
         }
 
         if (decodedBitmap == null) {
@@ -139,6 +151,15 @@ public class FirebaseStorageService {
         decodedBitmap.recycle();
 
         return outputStream.toByteArray();
+    }
+
+    private int calculateInSampleSize(int width, int height) {
+        int largestSide = Math.max(width, height);
+        int inSampleSize = 1;
+        while (largestSide / inSampleSize > MAX_IMAGE_DIMENSION * 2) {
+            inSampleSize *= 2;
+        }
+        return Math.max(1, inSampleSize);
     }
 
     private Bitmap scaleBitmapIfNeeded(Bitmap bitmap) {

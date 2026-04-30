@@ -29,6 +29,7 @@
         <activity android:name="com.foodrescue.app.view.BusinessHomeActivity" />
         <activity android:name="com.foodrescue.app.view.CustomerHomeActivity" />
         <activity android:name="com.foodrescue.app.view.AddListingActivity" />
+        <activity android:name="com.foodrescue.app.view.PickLocationActivity" />
         <activity android:name="com.foodrescue.app.view.ListingDetailsActivity" />
         <activity android:name="com.foodrescue.app.view.MapActivity" />
         <activity android:name="com.foodrescue.app.view.ProfileActivity" />

@@ -22,7 +22,6 @@ import com.foodrescue.app.data.SharedPreferencesManager;
 import com.foodrescue.app.firebase.FirebaseDatabaseService;
 import com.foodrescue.app.firebase.FirebaseStorageService;
 import com.foodrescue.app.model.Listing;
-import com.foodrescue.app.utils.LocationHelper;
 import com.foodrescue.app.utils.NotificationHelper; // Import NotificationHelper
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputLayout;
@@ -35,10 +34,8 @@ import java.util.Locale;
 import java.util.UUID;
 
 public class AddListingActivity extends AppCompatActivity {
-    private static final int LOCATION_PERMISSION_REQUEST_CODE = 301;
-    private static final double BASE_SIMULATED_LATITUDE = 28.6139;
-    private static final double BASE_SIMULATED_LONGITUDE = 77.2090;
-
+    private static final String EXTRA_SELECTED_LATITUDE = "selectedLatitude";
+    private static final String EXTRA_SELECTED_LONGITUDE = "selectedLongitude";
     private EditText editTextTitle, editTextQuantity, editTextPrice, editTextDescription, editTextPickupWindow;
     private Button buttonAddListing, buttonUseCurrentLocation, buttonSelectListingImage, buttonRemoveListingImage;
     private TextView textViewLocationStatus, textViewSavingStatus;
@@ -57,6 +54,7 @@ public class AddListingActivity extends AppCompatActivity {
     private String selectedImageUri;
     private String originalImageUri;
     private ActivityResultLauncher<String[]> imagePickerLauncher;
+    private ActivityResultLauncher<Intent> locationPickerLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -76,6 +74,26 @@ public class AddListingActivity extends AppCompatActivity {
         firebaseStorageService = new FirebaseStorageService(this);
         NotificationHelper.createNotificationChannel(this);
         imagePickerLauncher = registerForActivityResult(new ActivityResultContracts.OpenDocument(), this::handleListingImageSelected);
+        locationPickerLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() != RESULT_OK || result.getData() == null) {
+                        return;
+                    }
+                    Intent data = result.getData();
+                    if (data == null
+                            || !data.hasExtra(EXTRA_SELECTED_LATITUDE)
+                            || !data.hasExtra(EXTRA_SELECTED_LONGITUDE)) {
+                        return;
+                    }
+                    selectedLatitude = data.getDoubleExtra(EXTRA_SELECTED_LATITUDE, 0d);
+                    selectedLongitude = data.getDoubleExtra(EXTRA_SELECTED_LONGITUDE, 0d);
+                    String donorEmail = sharedPreferencesManager.getLoggedInUserEmail();
+                    if (donorEmail != null) {
+                        sharedPreferencesManager.saveUserLocation(donorEmail, selectedLatitude, selectedLongitude);
+                    }
+                    updateLocationStatus();
+                });
 
         editTextTitle = findViewById(R.id.editTextTitle);
         editTextQuantity = findViewById(R.id.editTextQuantity);
@@ -97,7 +115,8 @@ public class AddListingActivity extends AppCompatActivity {
         layoutSavingState = findViewById(R.id.layoutSavingState);
 
         setupPickupWindowPicker();
-        buttonUseCurrentLocation.setOnClickListener(v -> captureSellerLocation());
+        buttonUseCurrentLocation.setText("Pin Pickup Location on Map");
+        buttonUseCurrentLocation.setOnClickListener(v -> openLocationPicker());
         buttonSelectListingImage.setOnClickListener(v -> imagePickerLauncher.launch(new String[]{"image/*"}));
         buttonRemoveListingImage.setOnClickListener(v -> {
             selectedImageUri = null;
@@ -152,88 +171,79 @@ public class AddListingActivity extends AppCompatActivity {
     }
 
     private void saveOrUpdateListing() {
-        clearValidationErrors();
+        try {
+            clearValidationErrors();
 
-        String title = editTextTitle.getText().toString().trim();
-        String quantity = editTextQuantity.getText().toString().trim();
-        String price = editTextPrice.getText().toString().trim();
-        String description = editTextDescription.getText().toString().trim();
-        String pickupWindow = editTextPickupWindow.getText().toString().trim();
+            String title = editTextTitle.getText().toString().trim();
+            String quantity = editTextQuantity.getText().toString().trim();
+            String price = editTextPrice.getText().toString().trim();
+            String description = editTextDescription.getText().toString().trim();
+            String pickupWindow = editTextPickupWindow.getText().toString().trim();
 
-        if (!validateListingForm(title, quantity, price, description, pickupWindow)) {
-            return;
-        }
-
-        String donorEmail = sharedPreferencesManager.getLoggedInUserEmail();
-        if (donorEmail == null) {
-            Toast.makeText(this, "Error: Business account not logged in", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        String businessName = "";
-        if (sharedPreferencesManager.getUser(donorEmail) != null) {
-            businessName = sharedPreferencesManager.getUser(donorEmail).getBusinessName();
-        }
-
-        double[] listingCoordinates = resolveListingCoordinates(donorEmail);
-        double latitude = listingCoordinates[0];
-        double longitude = listingCoordinates[1];
-
-        Listing listingToPersist;
-        boolean isNewListing = currentListing == null;
-
-        if (isNewListing) {
-            String id = UUID.randomUUID().toString();
-            listingToPersist = new Listing(id, donorEmail, businessName, title, quantity, price, description, pickupWindow, latitude, longitude, false, null, null);
-        } else {
-            listingToPersist = new Listing(
-                    currentListing.getId(),
-                    donorEmail,
-                    businessName,
-                    title,
-                    quantity,
-                    price,
-                    description,
-                    pickupWindow,
-                    latitude,
-                    longitude,
-                    currentListing.isClaimed(),
-                    currentListing.getClaimedByEmail(),
-                    currentListing.getPaymentMethod()
-            );
-            listingToPersist.setOrderStatus(currentListing.getOrderStatus());
-        }
-        setSavingState(true, "Preparing listing...");
-        persistListingWithImage(listingToPersist, isNewListing);
-    }
-
-    private void captureSellerLocation() {
-        String donorEmail = sharedPreferencesManager.getLoggedInUserEmail();
-        if (!LocationHelper.hasLocationPermission(this)) {
-            LocationHelper.requestLocationPermission(this, LOCATION_PERMISSION_REQUEST_CODE);
-            return;
-        }
-
-        buttonUseCurrentLocation.setEnabled(false);
-        textViewLocationStatus.setText("Fetching current seller location...");
-        LocationHelper.fetchLastLocation(this, location -> runOnUiThread(() -> {
-            buttonUseCurrentLocation.setEnabled(true);
-            if (location == null) {
-                Toast.makeText(this, "Could not fetch current location. Using fallback location.", Toast.LENGTH_SHORT).show();
-                updateLocationStatus();
+            if (!validateListingForm(title, quantity, price, description, pickupWindow)) {
                 return;
             }
 
-            selectedLatitude = location.getLatitude();
-            selectedLongitude = location.getLongitude();
-            if (donorEmail != null) {
-                sharedPreferencesManager.saveUserLocation(donorEmail, selectedLatitude, selectedLongitude);
+            String donorEmail = sharedPreferencesManager.getLoggedInUserEmail();
+            if (donorEmail == null) {
+                Toast.makeText(this, "Error: Business account not logged in", Toast.LENGTH_SHORT).show();
+                return;
             }
-            updateLocationStatus();
-            Toast.makeText(this, "Seller location captured for navigation.", Toast.LENGTH_SHORT).show();
-        }));
+            String businessName = "";
+            if (sharedPreferencesManager.getUser(donorEmail) != null) {
+                businessName = sharedPreferencesManager.getUser(donorEmail).getBusinessName();
+            }
+
+            double[] listingCoordinates = resolveListingCoordinates();
+            if (listingCoordinates == null) {
+                Toast.makeText(this, "Pin the pickup location on the map before saving.", Toast.LENGTH_LONG).show();
+                return;
+            }
+            double latitude = listingCoordinates[0];
+            double longitude = listingCoordinates[1];
+
+            Listing listingToPersist;
+            boolean isNewListing = currentListing == null;
+
+            if (isNewListing) {
+                String id = UUID.randomUUID().toString();
+                listingToPersist = new Listing(id, donorEmail, businessName, title, quantity, price, description, pickupWindow, latitude, longitude, false, null, null);
+            } else {
+                listingToPersist = new Listing(
+                        currentListing.getId(),
+                        donorEmail,
+                        businessName,
+                        title,
+                        quantity,
+                        price,
+                        description,
+                        pickupWindow,
+                        latitude,
+                        longitude,
+                        currentListing.isClaimed(),
+                        currentListing.getClaimedByEmail(),
+                        currentListing.getPaymentMethod()
+                );
+                listingToPersist.setOrderStatus(currentListing.getOrderStatus());
+            }
+            setSavingState(true, "Preparing listing...");
+            persistListingWithImage(listingToPersist, isNewListing);
+        } catch (Exception e) {
+            setSavingState(false, null);
+            Toast.makeText(this, "Listing failed. Please try again.", Toast.LENGTH_LONG).show();
+        }
     }
 
-    private double[] resolveListingCoordinates(String donorEmail) {
+    private void openLocationPicker() {
+        Intent intent = new Intent(this, PickLocationActivity.class);
+        if (selectedLatitude != null && selectedLongitude != null) {
+            intent.putExtra(EXTRA_SELECTED_LATITUDE, selectedLatitude);
+            intent.putExtra(EXTRA_SELECTED_LONGITUDE, selectedLongitude);
+        }
+        locationPickerLauncher.launch(intent);
+    }
+
+    private double[] resolveListingCoordinates() {
         if (selectedLatitude != null && selectedLongitude != null) {
             return new double[]{selectedLatitude, selectedLongitude};
         }
@@ -242,27 +252,7 @@ public class AddListingActivity extends AppCompatActivity {
             return new double[]{currentListing.getLatitude(), currentListing.getLongitude()};
         }
 
-        return getSimulatedCoordinatesForDonor(donorEmail);
-    }
-
-    private void updateLocationStatus() {
-        if (selectedLatitude != null && selectedLongitude != null && hasValidCoordinates(selectedLatitude, selectedLongitude)) {
-            textViewLocationStatus.setText(String.format(Locale.getDefault(),
-                    "Saved seller location: %.5f, %.5f",
-                    selectedLatitude,
-                    selectedLongitude));
-            return;
-        }
-
-        if (currentListing != null && hasValidCoordinates(currentListing.getLatitude(), currentListing.getLongitude())) {
-            textViewLocationStatus.setText(String.format(Locale.getDefault(),
-                    "Using saved seller location: %.5f, %.5f",
-                    currentListing.getLatitude(),
-                    currentListing.getLongitude()));
-            return;
-        }
-
-        textViewLocationStatus.setText("Using fallback seller location. Tap the button to use current location.");
+        return null;
     }
 
     private boolean hasValidCoordinates(double latitude, double longitude) {
@@ -352,24 +342,24 @@ public class AddListingActivity extends AppCompatActivity {
         picker.show(getSupportFragmentManager(), title);
     }
 
-    private double[] getSimulatedCoordinatesForDonor(String donorEmail) {
-        int hash = Math.abs(donorEmail.hashCode());
-        double latOffset = ((hash % 1000) - 500) / 50000.0;
-        double lonOffset = (((hash / 1000) % 1000) - 500) / 50000.0;
-        return new double[]{BASE_SIMULATED_LATITUDE + latOffset, BASE_SIMULATED_LONGITUDE + lonOffset};
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
-            if (LocationHelper.hasLocationPermission(this)) {
-                captureSellerLocation();
-            } else {
-                Toast.makeText(this, "Location permission denied. Using fallback seller location.", Toast.LENGTH_SHORT).show();
-                updateLocationStatus();
-            }
+    private void updateLocationStatus() {
+        if (selectedLatitude != null && selectedLongitude != null && hasValidCoordinates(selectedLatitude, selectedLongitude)) {
+            textViewLocationStatus.setText(String.format(Locale.getDefault(),
+                    "Pinned pickup location: %.5f, %.5f",
+                    selectedLatitude,
+                    selectedLongitude));
+            return;
         }
+
+        if (currentListing != null && hasValidCoordinates(currentListing.getLatitude(), currentListing.getLongitude())) {
+            textViewLocationStatus.setText(String.format(Locale.getDefault(),
+                    "Using saved pickup location: %.5f, %.5f",
+                    currentListing.getLatitude(),
+                    currentListing.getLongitude()));
+            return;
+        }
+
+        textViewLocationStatus.setText("Pickup location is required. Pin it on the map.");
     }
 
     private void preloadStoredLocation() {
@@ -514,25 +504,56 @@ public class AddListingActivity extends AppCompatActivity {
             NotificationHelper.sendNotification(this, "Listing Updated!", "The listing '" + listing.getTitle() + "' has been updated.", listing.hashCode());
         }
 
-        setSavingState(false, null);
         originalImageUri = listing.getImageUri();
+        Listing cloudListing = buildCloudListing(listing, imageUploadFailed);
+        setSavingState(true, imageUploadFailed ? "Saving listing without image..." : "Saving listing...");
 
-        if (imageUploadFailed) {
-            Toast.makeText(this, "Listing saved. Image upload failed, so cloud image sync is incomplete.", Toast.LENGTH_LONG).show();
-        } else {
-            Toast.makeText(this, isNewListing ? "Listing added successfully!" : "Listing updated successfully!", Toast.LENGTH_SHORT).show();
-        }
+        firebaseDatabaseService.saveListing(cloudListing)
+                .addOnSuccessListener(unused -> runOnUiThread(() -> {
+                    setSavingState(false, null);
+                    if (imageUploadFailed) {
+                        Toast.makeText(
+                                this,
+                                "Listing added successfully. The image could not be uploaded, so other devices will see this listing without the image.",
+                                Toast.LENGTH_LONG
+                        ).show();
+                    } else {
+                        Toast.makeText(this, isNewListing ? "Listing added successfully!" : "Listing updated successfully!", Toast.LENGTH_SHORT).show();
+                    }
+                    finish();
+                }))
+                .addOnFailureListener(e -> runOnUiThread(() -> {
+                    setSavingState(false, null);
+                    Toast.makeText(
+                            this,
+                            imageUploadFailed
+                                    ? "Listing saved on this device, but cloud sync failed and the image was not uploaded."
+                                    : "Listing saved on this device, but cloud sync failed.",
+                            Toast.LENGTH_LONG
+                    ).show();
+                    finish();
+                }));
+    }
 
-        firebaseDatabaseService.saveListing(listing)
-                .addOnFailureListener(e -> runOnUiThread(() -> Toast.makeText(
-                        this,
-                        imageUploadFailed
-                                ? "Listing saved on this device, but image upload and cloud sync failed."
-                                : "Listing saved on this device, but cloud sync failed.",
-                        Toast.LENGTH_LONG
-                ).show()));
-
-        finish();
+    private Listing buildCloudListing(Listing listing, boolean imageUploadFailed) {
+        Listing cloudListing = new Listing(
+                listing.getId(),
+                listing.getDonorEmail(),
+                listing.getBusinessName(),
+                listing.getTitle(),
+                listing.getQuantity(),
+                listing.getPrice(),
+                listing.getDescription(),
+                listing.getPickupWindow(),
+                listing.getLatitude(),
+                listing.getLongitude(),
+                listing.isClaimed(),
+                listing.getClaimedByEmail(),
+                listing.getPaymentMethod()
+        );
+        cloudListing.setOrderStatus(listing.getOrderStatus());
+        cloudListing.setImageUri(imageUploadFailed ? null : listing.getImageUri());
+        return cloudListing;
     }
 
     private void cleanupRemovedRemoteImageIfNeeded() {

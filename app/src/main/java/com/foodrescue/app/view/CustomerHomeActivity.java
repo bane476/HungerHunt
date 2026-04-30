@@ -24,6 +24,7 @@ import com.foodrescue.app.adapters.ListingAdapter;
 import com.foodrescue.app.data.SharedPreferencesManager;
 import com.foodrescue.app.firebase.FirebaseDatabaseService;
 import com.foodrescue.app.model.Listing;
+import com.foodrescue.app.utils.ListingStatusHelper;
 import com.foodrescue.app.utils.LocationHelper;
 import com.foodrescue.app.utils.NotificationHelper;
 import com.google.gson.Gson;
@@ -247,6 +248,7 @@ public class CustomerHomeActivity extends AppCompatActivity implements ListingAd
         return listing != null
                 && getAvailableQuantity(listing) > 0
                 && !listing.isClaimed()
+                && !ListingStatusHelper.isExpired(listing)
                 && !"COMPLETED".equalsIgnoreCase(listing.getOrderStatus());
     }
 

@@ -19,6 +19,7 @@ public class SharedPreferencesManager {
     private static final String KEY_LOGGED_IN_USER_EMAIL = "loggedInUserEmail";
     private static final String KEY_LISTINGS = "listings";
     private static final String KEY_NOTIFIED_LISTINGS = "notifiedListings";
+    private static final String KEY_EXPIRED_LISTINGS = "expiredListings";
     private static final String KEY_ORDER_HISTORY = "orderHistory";
     private static final String KEY_USER_LOCATION_LAT = "userLocationLat";
     private static final String KEY_USER_LOCATION_LNG = "userLocationLng";
@@ -35,15 +36,17 @@ public class SharedPreferencesManager {
             int storedVersion = sharedPreferences.getInt(KEY_DATA_VERSION, 0);
             if (storedVersion < CURRENT_DATA_VERSION) {
                 sharedPreferences.edit()
-                        .clear()
                         .putInt(KEY_DATA_VERSION, CURRENT_DATA_VERSION)
-                        .commit();
+                        .apply();
             }
             migrationChecked = true;
         }
     }
 
     public void saveUser(User user) {
+        if (user == null || user.getEmail() == null || user.getEmail().trim().isEmpty()) {
+            return;
+        }
         String userJson = gson.toJson(user);
         sharedPreferences.edit().putString(KEY_USER + "_" + user.getEmail(), userJson).apply();
     }
@@ -119,6 +122,17 @@ public class SharedPreferencesManager {
         Set<String> notifiedIds = new HashSet<>(sharedPreferences.getStringSet(KEY_NOTIFIED_LISTINGS, new HashSet<>()));
         notifiedIds.add(listingId);
         sharedPreferences.edit().putStringSet(KEY_NOTIFIED_LISTINGS, notifiedIds).apply();
+    }
+
+    public boolean isExpiredListingNotified(String listingId) {
+        Set<String> expiredIds = new HashSet<>(sharedPreferences.getStringSet(KEY_EXPIRED_LISTINGS, new HashSet<>()));
+        return expiredIds.contains(listingId);
+    }
+
+    public void markExpiredListingNotified(String listingId) {
+        Set<String> expiredIds = new HashSet<>(sharedPreferences.getStringSet(KEY_EXPIRED_LISTINGS, new HashSet<>()));
+        expiredIds.add(listingId);
+        sharedPreferences.edit().putStringSet(KEY_EXPIRED_LISTINGS, expiredIds).apply();
     }
 
     public void addOrderHistoryEntry(String userEmail, String type, String entry) {

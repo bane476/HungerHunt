@@ -22,6 +22,7 @@ import com.foodrescue.app.firebase.FirebaseDatabaseService;
 import com.foodrescue.app.firebase.FirebaseStorageService;
 import com.foodrescue.app.model.Listing;
 import com.foodrescue.app.model.User;
+import com.foodrescue.app.utils.ListingStatusHelper;
 import com.foodrescue.app.utils.NotificationHelper; // Import NotificationHelper
 import com.google.android.material.chip.Chip;
 import com.google.android.gms.tasks.Tasks;
@@ -113,7 +114,9 @@ public class ListingDetailsActivity extends AppCompatActivity {
                     // Logged-in user is a receiver
                     buttonEditListing.setVisibility(View.GONE);
                     buttonDeleteListing.setVisibility(View.GONE);
-                    if (currentListing.isClaimed() || getAvailableQuantity() <= 0) {
+                    if (currentListing.isClaimed()
+                            || getAvailableQuantity() <= 0
+                            || ListingStatusHelper.isExpired(currentListing)) {
                         buttonClaimListing.setVisibility(View.GONE); // Already claimed
                     } else {
                         buttonClaimListing.setVisibility(View.VISIBLE); // Can claim
@@ -169,6 +172,15 @@ public class ListingDetailsActivity extends AppCompatActivity {
     }
 
     private void updateClaimStatusUI() {
+        if (ListingStatusHelper.isExpired(currentListing)) {
+            textViewClaimStatus.setText("Pickup window ended. This listing is no longer available.");
+            textViewClaimStatus.setVisibility(View.VISIBLE);
+            chipOrderStatus.setText("EXPIRED");
+            chipOrderStatus.setChipBackgroundColorResource(R.color.text_secondary);
+            chipOrderStatus.setTextColor(ContextCompat.getColor(this, R.color.white));
+            chipOrderStatus.setVisibility(View.VISIBLE);
+            return;
+        }
         if (currentListing.isClaimed()) {
             String claimStatus = "Claimed by: " + currentListing.getClaimedByEmail();
             if (!TextUtils.isEmpty(currentListing.getPaymentMethod())) {
@@ -304,6 +316,10 @@ public class ListingDetailsActivity extends AppCompatActivity {
     }
 
     private void updateOrderStatusButtonVisibility() {
+        if (ListingStatusHelper.isExpired(currentListing)) {
+            buttonUpdateOrderStatus.setVisibility(View.GONE);
+            return;
+        }
         if (canUserAdvanceStatus()) {
             buttonUpdateOrderStatus.setVisibility(View.VISIBLE);
             if ("CLAIMED".equalsIgnoreCase(getCurrentOrderStatus())) {
