@@ -506,20 +506,14 @@ public class AddListingActivity extends AppCompatActivity {
 
         originalImageUri = listing.getImageUri();
         Listing cloudListing = buildCloudListing(listing, imageUploadFailed);
-        setSavingState(true, imageUploadFailed ? "Saving listing without image..." : "Saving listing...");
+        
+        // Ensure UI update for cloud saving state
+        runOnUiThread(() -> setSavingState(true, imageUploadFailed ? "Saving listing without image..." : "Saving listing..."));
 
         firebaseDatabaseService.saveListing(cloudListing)
                 .addOnSuccessListener(unused -> runOnUiThread(() -> {
                     setSavingState(false, null);
-                    if (imageUploadFailed) {
-                        Toast.makeText(
-                                this,
-                                "Listing added successfully. The image could not be uploaded, so other devices will see this listing without the image.",
-                                Toast.LENGTH_LONG
-                        ).show();
-                    } else {
-                        Toast.makeText(this, isNewListing ? "Listing added successfully!" : "Listing updated successfully!", Toast.LENGTH_SHORT).show();
-                    }
+                    Toast.makeText(this, isNewListing ? "Listing added successfully!" : "Listing updated successfully!", Toast.LENGTH_SHORT).show();
                     finish();
                 }))
                 .addOnFailureListener(e -> runOnUiThread(() -> {
@@ -527,8 +521,8 @@ public class AddListingActivity extends AppCompatActivity {
                     Toast.makeText(
                             this,
                             imageUploadFailed
-                                    ? "Listing saved on this device, but cloud sync failed and the image was not uploaded."
-                                    : "Listing saved on this device, but cloud sync failed.",
+                                    ? "Listing saved on this device, but cloud sync failed."
+                                    : "Listing saved locally, but cloud sync failed.",
                             Toast.LENGTH_LONG
                     ).show();
                     finish();

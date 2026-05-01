@@ -57,10 +57,23 @@ public class AuthRepository {
         firebaseAuthService.registerUser(normalizedEmail, user.getPassword(), new FirebaseAuthService.AuthCallback() {
             @Override
             public void onSuccess() {
-                sharedPreferencesManager.saveUser(user);
-                sharedPreferencesManager.saveLoggedInUserEmail(normalizedEmail);
-                callback.onSuccess(user, "Registration successful");
-                syncUserProfileToCloud(user, 0);
+                firebaseAuthService.sendEmailVerification(new FirebaseAuthService.AuthCallback() {
+                    @Override
+                    public void onSuccess() {
+                        sharedPreferencesManager.saveUser(user);
+                        sharedPreferencesManager.saveLoggedInUserEmail(normalizedEmail);
+                        callback.onSuccess(user, "Registration successful! A verification email has been sent to " + normalizedEmail + ". Please verify before logging in.");
+                        syncUserProfileToCloud(user, 0);
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        sharedPreferencesManager.saveUser(user);
+                        sharedPreferencesManager.saveLoggedInUserEmail(normalizedEmail);
+                        callback.onSuccess(user, "Registration successful, but failed to send verification email: " + message);
+                        syncUserProfileToCloud(user, 0);
+                    }
+                });
             }
 
             @Override
@@ -87,6 +100,12 @@ public class AuthRepository {
         firebaseAuthService.loginUser(normalizedEmail, password, new FirebaseAuthService.AuthCallback() {
             @Override
             public void onSuccess() {
+                if (!firebaseAuthService.isEmailVerified()) {
+                    callback.onError("Please verify your email before logging in. A verification link was sent to " + normalizedEmail);
+                    firebaseAuthService.signOut();
+                    return;
+                }
+
                 User localUser = sharedPreferencesManager.getUser(normalizedEmail);
                 String authenticatedEmail = firebaseAuthService.getCurrentUserEmail();
                 String authenticatedUid = firebaseAuthService.getCurrentUserUid();

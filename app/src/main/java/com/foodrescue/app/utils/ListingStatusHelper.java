@@ -28,7 +28,14 @@ public final class ListingStatusHelper {
         }
 
         LocalTime pickupEndTime = parsePickupWindowEnd(listing.getPickupWindow());
-        return pickupEndTime != null && LocalTime.now().isAfter(pickupEndTime);
+        if (pickupEndTime == null) {
+            return false;
+        }
+
+        // Current implementation only stores time (HH:mm). 
+        // We assume listings are for the current day.
+        // A listing is only expired if the current time is strictly after the pickup end time.
+        return LocalTime.now().isAfter(pickupEndTime);
     }
 
     public static LocalTime parsePickupWindowEnd(String pickupWindow) {

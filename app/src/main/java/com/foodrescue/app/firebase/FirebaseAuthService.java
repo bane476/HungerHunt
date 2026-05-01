@@ -81,6 +81,39 @@ public class FirebaseAuthService {
                 });
     }
 
+    public void sendEmailVerification(AuthCallback callback) {
+        if (!firebaseConfigured || firebaseAuth == null) {
+            callback.onError(configurationErrorMessage);
+            return;
+        }
+
+        FirebaseUser user = firebaseAuth.getCurrentUser();
+        if (user != null) {
+            user.sendEmailVerification()
+                    .addOnCompleteListener(task -> {
+                        if (task.isSuccessful()) {
+                            callback.onSuccess();
+                        } else {
+                            callback.onError("Failed to send verification email. " + 
+                                    (task.getException() != null ? task.getException().getMessage() : ""));
+                        }
+                    });
+        } else {
+            callback.onError("No user signed in to verify.");
+        }
+    }
+
+    public boolean isEmailVerified() {
+        if (!firebaseConfigured || firebaseAuth == null) {
+            return false;
+        }
+        FirebaseUser user = firebaseAuth.getCurrentUser();
+        if (user != null) {
+            return user.isEmailVerified();
+        }
+        return false;
+    }
+
     public void signOut() {
         if (firebaseConfigured && firebaseAuth != null) {
             firebaseAuth.signOut();
